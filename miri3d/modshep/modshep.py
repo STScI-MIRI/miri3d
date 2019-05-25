@@ -260,7 +260,7 @@ def cube(filenames,band,**kwargs):
     # Call cube-build algorithm core
     dim_out=np.array([cube_xsize,cube_ysize,cube_zsize])
 
-    cube=core(cube_x,cube_y,cube_z,master_flux,dim_out,rlim, scale, detx=master_detx, dety=master_dety, enum=master_expnum, detl=master_lam, **kwargs)
+    cube=core(cube_x,cube_y,cube_z,master_flux,dim_out,rlim, scale, detx=master_detx, dety=master_dety, enum=master_expnum, detl=master_lam, psx=ps_x, psy=ps_y, psz=ps_z, **kwargs)
     # Transpose to python shape
     cube=np.transpose(cube)
     hdu=fits.PrimaryHDU(cube)
@@ -316,6 +316,9 @@ def core(x,y,z,f, dim_out, rlim, scale, **kwargs):
     detx=np.zeros(len(f))-1
     dety=np.zeros(len(f))-1
     detl=np.zeros(len(f))-1
+    psx=-1.
+    psy=-1.
+    psz=-1.
     if ('detx' in kwargs):
         detx=kwargs['detx']
     if ('dety' in kwargs):
@@ -324,6 +327,12 @@ def core(x,y,z,f, dim_out, rlim, scale, **kwargs):
         detl=kwargs['detl']
     if ('enum' in kwargs):
         enum=kwargs['enum']
+    if ('psx' in kwargs):
+        psx=kwargs['psx']
+    if ('psy' in kwargs):
+        psy=kwargs['psy']        
+    if ('psz' in kwargs):
+        psz=kwargs['psz']
         
     # XYZ output pixel coordinate arrays
     arr_xcoord = np.arange(thisdim_out[0])
@@ -454,20 +463,27 @@ def core(x,y,z,f, dim_out, rlim, scale, **kwargs):
                     temp=arr_weights[:,stopx]
                     thispix=(np.where(temp != 0))[0]
                     nthis=len(thispix)
-                    thispix_detx=temp2_detx[thispix]
-                    thispix_dety=temp2_dety[thispix]
-                    thispix_detl=temp2_detl[thispix]
-                    thispix_dx=tempx2[thispix]-stopx
-                    thispix_dy=tempy2[thispix]-stopy
-                    thispix_dz=tempz2[thispix]-stopz-0.5
-                    thispix_enum=tempenum2[thispix]
-                    thispix_flux=tempf2[thispix]
+                    thispix_weight=temp[thispix]/matr_norm[stopx]
+
+                    # Sort according to decreasing weights
+                    thispix_detx=[x for _,x in sorted(zip(thispix_weight,temp2_detx[thispix]),reverse=True)]
+                    thispix_dety=[x for _,x in sorted(zip(thispix_weight,temp2_dety[thispix]),reverse=True)]
+                    thispix_detl=[x for _,x in sorted(zip(thispix_weight,temp2_detl[thispix]),reverse=True)]
+                    thispix_dx=[x for _,x in sorted(zip(thispix_weight,tempx2[thispix]-stopx),reverse=True)]
+                    thispix_dy=[x for _,x in sorted(zip(thispix_weight,tempy2[thispix]-stopy),reverse=True)]
+                    thispix_dz=[x for _,x in sorted(zip(thispix_weight,tempz2[thispix]-stopz-0.5),reverse=True)]
+                    thispix_enum=[x for _,x in sorted(zip(thispix_weight,tempenum2[thispix]),reverse=True)]
+                    thispix_flux=[x for _,x in sorted(zip(thispix_weight,tempf2[thispix]),reverse=True)]
+                    thispix_weight.sort()
+                    thispix_weight=thispix_weight[::-1]
+
                     print('Debug location is: ',stopx,stopy,stopz)
                     print('Final value is: ',fcube[stopx,j,k])
-                    print('exp xdet ydet wave xdist ydist zdist rxy flux rweight nweight')
+                    print('Cutoff xdist/ydist: ',rlim[0]*psx)
+                    print('Cutff zdist: ',rlim[2]*psz)
+                    print('{:>4} {:>6} {:>6} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}'.format('exp','xdet','ydet','wave','xdist','ydist','zdist','rxy','flux','rweight','nweight'))
                     for r in range(nthis):
-                        # NB- HARDCODING pixel size conversions to 0.1/0.1 arcsec and 0.002 micron
-                        print('{} {} {} {} {} {} {} {} {} {} {}'.format(round(thispix_enum[r],4),thispix_detx[r].astype(int),thispix_dety[r].astype(int),round(thispix_detl[r],4),round(thispix_dx[r]*0.1,4), round(thispix_dy[r]*0.1,4), round(thispix_dz[r]*0.002,4),round(np.sqrt(thispix_dx[r]**2+thispix_dy[r]**2)*0.1,4),round(thispix_flux[r],4),round(temp[thispix[r]],4),round(temp[thispix[r]]/matr_norm[stopx],4)))
+                        print('{:>4} {:>6} {:>6} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7} {:>7}'.format(thispix_enum[r].astype(int),thispix_detx[r].astype(int),thispix_dety[r].astype(int),round(thispix_detl[r],4),round(thispix_dx[r]*psx,4), round(thispix_dy[r]*psy,4), round(thispix_dz[r]*psz,4),round(np.sqrt(thispix_dx[r]**2+thispix_dy[r]**2)*psx,4),round(thispix_flux[r],4),round(temp[thispix[r]],4),round(temp[thispix[r]]/matr_norm[stopx],4)))
                     pdb.set_trace()
                         
     return fcube
