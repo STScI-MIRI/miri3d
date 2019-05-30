@@ -62,13 +62,15 @@
 ;-
 ;------------------------------------------------------------------------------
 
-pro miri_cube,band,imonly=imonly,rampdata=rampdata,cvint=cvint,stopx=stopx,stopy=stopy,stopz=stopz
+pro miri_cube,band,wtype=wtype,imonly=imonly,rampdata=rampdata,cvint=cvint,stopx=stopx,stopy=stopy,stopz=stopz
 
 ; Log runtime
 stime0 = systime(1)
 ; Memory tracking
 thismem = memory()
 maxmem = 0
+
+if (~keyword_set(wtype)) then wtype=1
 
 channel=fix(strmid(band,0,1))
 if (channel eq 1) then det_name='MIRIFUSHORT'
@@ -166,7 +168,8 @@ if ((band eq '1A')or(band eq '1B')or(band eq '1C')) then begin
   xmax=509; Maximum x pixel
 
   ; Output cube parameters
-  rlim_arcsec=0.15; in arcseconds
+  rlim_arcsec=0.4 ; in arcseconds
+  expsig_arcsec=0.1 ; arcsec
   rlimz_mic=0.0025;
   ps_x=0.13; arcsec
   ps_y=0.13; arcsec
@@ -435,6 +438,7 @@ rlimz=rlimz_mic/ps_z
 ; (Gives about 1-2 spec elements at each spatial element)
 rlim=[rlimx,rlimy,rlimz]; in pixels
 
+expsig=expsig_arcsec/ps_x
 
 ; Scale correction factor is the ratio of area between an input pixel
 ; (in arcsec^2) and the output pixel size in arcsec^2
@@ -473,7 +477,7 @@ make_astr,astr,cd=cdarr,crpix=[xcen+1,ycen+1],crval=[racen,decen]
 ;writefits,outslice,im,imhdr
 
 if (~keyword_set(imonly)) then begin
-  cube=mmrs_cube(cube_x,cube_y,cube_z,master_flux,master_expnum,[cube_xsize,cube_ysize,cube_zsize],rlim,xsquash=xpsf,ysquash=ypsf,scale=scale,wtype=1,expsig=expsig,stopx=stopx,stopy=stopy,stopz=stopz,detx=master_detx,dety=master_dety)
+  cube=mmrs_cube(cube_x,cube_y,cube_z,master_flux,master_expnum,[cube_xsize,cube_ysize,cube_zsize],rlim,xsquash=xpsf,ysquash=ypsf,scale=scale,wtype=wtype,expsig=expsig,stopx=stopx,stopy=stopy,stopz=stopz,detx=master_detx,dety=master_dety)
   ; Write file
   mkhdr,cubehdr,cube
   putast,cubehdr,astr
