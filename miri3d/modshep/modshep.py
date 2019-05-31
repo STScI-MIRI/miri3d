@@ -57,9 +57,11 @@ def setcube(filenames,band,wtype=1,**kwargs):
         sys.exit(-1)
 
     # Band-specific cube-building parameters
-    if ((band == '1A')or(band == '1B')or(band == '1C')):
+    if (band == '1A'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
+          lammin=4.89# Minimum wavelength
+          lammax=5.75# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -67,7 +69,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           rlimz_mic=0.0025#
           ps_x=0.13# arcsec
           ps_y=0.13# arcsec
-          ps_z=0.0025# micron
+          ps_z=0.001# micron
     else:
         print('Not implemented!')
         sys.exit(-1)
@@ -166,7 +168,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     medra=np.median(master_ra)
 
     # Declare maxima/minima of the cube range *before* doing any QA cuts for specific exposures
-    lmin,lmax=min(master_lam),max(master_lam)
+    lmin,lmax=lammin,lammax
     ra_min,ra_max=min(master_ra),max(master_ra)
     dec_min,dec_max=min(master_dec),max(master_dec)
     dec_ave=(dec_min+dec_max)/2.
