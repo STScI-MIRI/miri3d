@@ -4,6 +4,11 @@ Standalone python implementation of the modified Shepard cube-building algorithm
 for the MIRI MRS.  Uses miricoord for the distortion transforms, and does not
 depend on the JWST pipeline.
 
+wtype is the type of weighting to use.
+wtype=1 is 1/r
+wtype=2 is 1/r**2
+wtype=3 is e^(-r)
+
 Author: David R. Law (dlaw@stsci.edu)
 
 REVISION HISTORY:
@@ -25,10 +30,10 @@ import pdb
 
 #############################
 
-def cube(filenames,band,**kwargs):
-    # CDP-8b distortion solution
+def setcube(filenames,band,wtype=1,**kwargs):
+    # Set the distortion solution to use
     mt.set_toolversion('cdp6')
-    
+
     nfiles=len(filenames)
     indir = os.path.dirname(os.path.realpath(filenames[0]))
     outdir=indir+'/pystack/'
@@ -37,7 +42,7 @@ def cube(filenames,band,**kwargs):
     outcube=outdir+'pycube.fits'
     outslice=outdir+'slice.fits'
     outcollapse=outdir+'collapse.fits'
-
+    
     # Basic header information from the first file
     head0=fits.open(filenames[0])[0].header
     head1=fits.open(filenames[0])[1].header
@@ -53,13 +58,12 @@ def cube(filenames,band,**kwargs):
 
     # Band-specific cube-building parameters
     if ((band == '1A')or(band == '1B')or(band == '1C')):
-          pwidth=0.196# pixel size along alpha in arcsec
-          swidth=0.176# slice width in arcsec
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
 
           # Output cube parameters
-          rlim_arcsec=0.16# in arcseconds
+          expsig_arcsec=0.1
+          rlim_arcsec=0.4
           rlimz_mic=0.0025#
           ps_x=0.13# arcsec
           ps_y=0.13# arcsec
@@ -68,7 +72,11 @@ def cube(filenames,band,**kwargs):
         print('Not implemented!')
         sys.exit(-1)
 
+    # Note that we're assuming that the inputs have already been put
+    # into surface brightness units, that divide out the specific pixel area
 
+    print('Defining base reference coordinates')
+    
     # Define 0-indexed base x and y pixel number
     basex,basey = np.meshgrid(np.arange(1032),np.arange(1024))
     # Convert to 1d vectors
@@ -110,7 +118,8 @@ def cube(filenames,band,**kwargs):
     master_v3=np.zeros(npix*nfiles)
 
     ########
-    
+
+    print('Reading',nfiles,'inputs')
     # Loop over input files reading them into master vectors
     for i in range(0,nfiles):
         hdu = fits.open(filenames[i])
@@ -251,6 +260,18 @@ def cube(filenames,band,**kwargs):
     rlim=[rlimx*fac,rlimy*fac,rlimz] # in pixels
     print('Radius of influence in X-Y-Z direction: {} pixels'.format(rlim))
 
+    # Exponential sigma for gaussian weighting
+    expsig=expsig_arcsec/ps_x
+    print('Exponential weighting sigma: {} pixels'.format(expsig))
+
+    # Which weighting scheme?
+    if (wtype == 1):
+        print('Using 1/r weighting')
+    if (wtype == 2):
+        print('Using 1/r**2 weighting')        
+    if (wtype == 3):
+        print('Using exponential weighting')    
+    
     # Scale correction factor is the ratio of area between an input pixel
     # (in arcsec^2) and the output pixel size in arcsec^2
     # The result means that the cube will be in calibrated units/pixel
@@ -259,7 +280,7 @@ def cube(filenames,band,**kwargs):
 
     # Call cube-build algorithm core
     dim_out=np.array([cube_xsize,cube_ysize,cube_zsize])
-    cube=core(cube_x,cube_y,cube_z,master_flux,dim_out,rlim, scale, detx=master_detx, dety=master_dety, enum=master_expnum, detl=master_lam, psx=ps_x, psy=ps_y, psz=ps_z, **kwargs)
+    cube=core(cube_x,cube_y,cube_z,master_flux,dim_out,expsig,rlim, scale, wtype, detx=master_detx, dety=master_dety, enum=master_expnum, detl=master_lam, psx=ps_x, psy=ps_y, psz=ps_z, **kwargs)
     # Transpose to python shape
     cube=np.transpose(cube)
     hdu=fits.PrimaryHDU(cube)
@@ -292,14 +313,11 @@ def cube(filenames,band,**kwargs):
 # Core of the cube-building algorithm, when all parameters have been set
 # Can accept 'stopx' and 'stopy' in kwargs
 
-def core(x,y,z,f, dim_out, rlim, scale, **kwargs):
+def core(x,y,z,f, dim_out, expsig, rlim, scale, wtype, **kwargs):
     thisdim_out=dim_out.copy()
     # Empty output cube
     fcube = np.zeros(thisdim_out)
     maskcube=np.ones(thisdim_out)
-
-    # Hard coding weighting type
-    wtype = 2
 
     # Defaults for stop debug locations
     stopx,stopy,stopz=-1,-1,-1
@@ -345,7 +363,7 @@ def core(x,y,z,f, dim_out, rlim, scale, **kwargs):
     for k in range(thisdim_out[2]):
         # Print a message every 5% of the loop
         if (np.mod(k,np.round(dim_out[2]/20)) == 0):
-            print('Constructing cube: ',k/dim_out[2]*100,'% complete')
+            print('Constructing cube: ',int(k/dim_out[2]*100),'% complete')
 
         # First pass cut: trim to only stuff within rlim of this z location
         indexk=np.where(abs(z-arr_zcoord[k]-0.5) <= rlim[2])
