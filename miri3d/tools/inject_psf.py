@@ -32,7 +32,7 @@ import pdb
 
 def main():
     # Set the distortion solution to use
-    mt.set_toolversion('cdp6')
+    mt.set_toolversion('cdp8b')
     
     # Work in Ch1A for illustrative purposes
     band='1A'
@@ -44,7 +44,7 @@ def main():
     # PSF fwhm; approximate it by a gaussian for now and hard-code it
     fwhm_input=0.349 # arcsec
 
-    print('Setting up the scene')
+    print('Setting up the coordinates')
     
     # Define 0-indexed base x and y pixel number (1032x1024 grid)
     basex,basey = np.meshgrid(np.arange(1032),np.arange(1024))
@@ -78,6 +78,8 @@ def main():
     basev2,basev3=mt.abtov2v3(basealpha,basebeta,band)
     basev2l,basev3l=mt.abtov2v3(basealphal,basebetal,band)
     basev2r,basev3r=mt.abtov2v3(basealphar,basebetar,band)
+
+    print('Setting up the scene')
     
     # Set up the scene in RA/DEC
     # Use decl=0 to make life easier
@@ -86,7 +88,7 @@ def main():
     scene_xsize=10.#arcsec
     scene_ysize=10.#arcsec
     # Scene sampling
-    dx,dy=0.01,0.01# arcsec/pixel
+    dx,dy=0.001,0.001# arcsec/pixel
     scene_nx=int(scene_xsize/dx)
     scene_ny=int(scene_ysize/dy)
     scene=np.zeros([scene_ny,scene_nx])
@@ -111,6 +113,8 @@ def main():
     
     hdu.writeto('scene.fits',overwrite=True)
 
+    print('Projecting scene')
+    
     # Compute the RA,DEC of pixel 0,0 for later reference
     ra0=raobj-xcen*dx/3600.
     dec0=decobj-ycen*dy/3600.
@@ -169,6 +173,10 @@ def main():
             y_ll,y_ur=np.min([y1[jj],y2[jj]]),np.max([y1[jj],y2[jj]])+1
             
             earea=(x_ur-x_ll)*(y_ur-y_ll)*dx*dy# Effective area in arcsec2 for the surface brightness normalization
+            #if ((baselambda[jj] > 5.3)&(baselambda[jj] < 5.3015)):
+            #    thisexp[basey[jj],basex[jj]]=np.sum(scene2[y_ll:y_ur,x_ll:x_ur])/earea
+            #else:
+            #    thisexp[basey[jj],basex[jj]]=np.sum(scene[y_ll:y_ur,x_ll:x_ur])/earea
             thisexp[basey[jj],basex[jj]]=np.sum(scene[y_ll:y_ur,x_ll:x_ur])/earea
 
         # Copy template info to new file

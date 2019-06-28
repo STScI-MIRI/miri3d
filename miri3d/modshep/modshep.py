@@ -32,7 +32,7 @@ import pdb
 
 def setcube(filenames,band,wtype=1,**kwargs):
     # Set the distortion solution to use
-    mt.set_toolversion('cdp6')
+    mt.set_toolversion('cdp8b')
 
     nfiles=len(filenames)
     indir = os.path.dirname(os.path.realpath(filenames[0]))
@@ -64,8 +64,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
           lammax=5.75# Max wavelength
 
           # Output cube parameters
-          expsig_arcsec=0.1
-          rlim_arcsec=0.4
+          expsig_arcsec=0.1#0.1
+          rlim_arcsec=0.4#0.4
           rlimz_mic=0.0025#
           ps_x=0.13# arcsec
           ps_y=0.13# arcsec
