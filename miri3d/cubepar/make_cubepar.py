@@ -9,6 +9,7 @@ Author: Beth Sargent (sargent@stsci.edu) and David R. Law (dlaw@stsci.edu)
 REVISION HISTORY:
 Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 18-Jul-2019  Convert to python (D. Law)
+19-Jul-2019  Add exponential weight extensions (D. Law)
 """
 
 from astropy.io import fits
@@ -46,8 +47,13 @@ def make_cubepar():
     # Create third extension (MULTICHANNEL_MSM: multichannel 1/r2 weights and roi)
     hdu3=make_ext3()
 
+    # Create the fourth extension (CUBEPAR_EMSM: per-band exponential weights and roi)
+    hdu4=make_ext4()
     
-    hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3])
+    # Create the fifth extension (MULTICHANNEL_EMSM: multichannel exponential weights and roi)
+    hdu5=make_ext5()
+    
+    hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5])
     hdul.writeto(outfile,overwrite=True)
 
 #############################
@@ -193,3 +199,67 @@ def mrs_multiwave():
     finalwave=lam[0:i]
 
     return finalwave
+
+#############################
+
+# Create 4th extension (CUBEPAR_EMSM) with per-band Modified Shepard (exponential weight) parameters
+
+def make_ext4():
+    chan=np.array([1,1,1,2,2,2,3,3,3,4,4,4])
+    bnd=np.array(['SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG'])
+
+    # Rough middle wavelengths
+    lamcen=np.array([5.3,6.1,7.1,8.2,9.4,10.8,12.5,14.5,16.75,19.1,22.5,26.0])
+    fwhm=lamcen/8.*0.31
+    # Kludge ch1 fwhm because non-circular
+    fwhm[0],fwhm[1],fwhm[2]=0.31,0.31,0.31
+
+    # Rough guess at exponential scale radius as FWHM/3 (~ 1 sigma)
+    scalerad=fwhm/3.
+    # Rough guess at ROI limiting region
+    roispat=fwhm*1.3
+    # Rough guess at ROI spectral region
+    roispec=np.array([0.0025,0.0025,0.0025,0.005,0.005,0.005,0.007,0.007,0.007,0.014,0.014,0.014])
+
+    col1=fits.Column(name='CHANNEL',format='I',array=chan)
+    col2=fits.Column(name='BAND',format='10A',array=bnd)
+    col3=fits.Column(name='ROISPATIAL',format='E',array=roispat, unit='arcsec')
+    col4=fits.Column(name='ROISPECTRAL',format='E',array=roispec, unit='micron')
+    col5=fits.Column(name='SCALERAD',format='E',array=scalerad, unit='arcsec')
+
+    hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5])
+    hdu.header['EXTNAME']='CUBEPAR_EMSM'
+    
+    return hdu
+
+#############################
+
+# Create 5th extension (MULTICHANNEL_EMSM) with multichannel Modified Shepard (exponential weight) parameters
+
+def make_ext5():
+    # Define the multiextension wavelength solution
+    finalwave=mrs_multiwave()
+    nelem=len(finalwave)
+
+    # Rough FWHM
+    fwhm=finalwave/8.*0.31
+    # Kludge fwhm below 8 microns b/c non-circular
+    indx=np.where(finalwave < 8.0)
+    fwhm[indx]=0.31
+
+    # Rough guess at exponential scale radius as FWHM/3 (~ 1 sigma)
+    scalerad=fwhm/3.
+    # Rough guess at ROI limiting region
+    roispat=fwhm*1.3
+    # Rough guess at ROI spectral region
+    roispec=((0.014 - 0.0025)/(28.4186-4.89000))*(finalwave-4.890)+0.0025
+
+    col1=fits.Column(name='WAVELENGTH',format='D',array=finalwave, unit='micron')
+    col2=fits.Column(name='ROISPATIAL',format='E',array=roispat, unit='arcsec')
+    col3=fits.Column(name='ROISPECTRAL',format='E',array=roispec, unit='micron')
+    col4=fits.Column(name='SCALERAD',format='E',array=scalerad, unit='arcsec')
+
+    hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4])
+    hdu.header['EXTNAME']='MULTICHANNEL_EMSM'
+    
+    return hdu
