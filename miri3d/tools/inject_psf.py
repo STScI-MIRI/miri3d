@@ -4,15 +4,25 @@ Tool for injecting a point source into a MIRI MRS detector image in order to tes
 cube building algorithm performance.
 
 Uses miricoord for the distortion transforms, and does not depend on the JWST pipeline.
+Works by reading in a template Lvl2b file produced with mirisim and run through the JWST
+pipeline, and then overwriting SCI extension values and relevant dither header keywords.
 
-Note that output will need to be run through assign_wcs before they can be build
-into data cubes.
+Note that output will need to be run through assign_wcs before they can be built
+into data cubes using the pipeline (or just use miri3d to do so).
+
+Required input:
+detband: Detector configuration to use (e.g., 12A)
+dithers: Dither positions to use (undithered, and standard 4-pt dither available)
+
+Example:
+inject_psf.main('12A',[1,2,3,4]) would give a standard 4-pt dither in Ch12A.
 
 Author: David R. Law (dlaw@stsci.edu)
 
 REVISION HISTORY:
 15-Nov-2017  IDL version written by David Law (dlaw@stsci.edu)
 30-May-2019  Adapted to python (D. Law)
+19-Jul-2019  Overhaul to work for more than Ch1A (D. Law)
 """
 
 import os as os
@@ -30,19 +40,167 @@ import pdb
 
 #############################
 
-def main():
+# Main wrapper script
+# This current assumes up to 4 dither positions 
+# E.g., pass it [0] to just use an undithered position
+# or [1,2,3,4] to use four-point dither.
+#
+# Input detband is (e.g.) 12A, 34B, etc.
+
+def main(detband,dithers):
     # Set the distortion solution to use
     mt.set_toolversion('cdp8b')
+
+    # Define the bands to use
+    if (detband == '12A'):
+        left,right='1A','2A'
+    elif (detband == '12B'):
+        left,right='1B','2B'
+    elif (detband == '12C'):
+        left,right='1C','2C'
+    elif (detband == '34A'):
+        left,right='4A','3A'        
+    elif (detband == '34B'):
+        left,right='4B','3B'
+    elif (detband == '34C'):
+        left,right='4C','3C'   
+    else:
+        print('Input detector/band not recognized!')
+        
+    print('Setting up the dithers')
     
-    # Work in Ch1A for illustrative purposes
-    band='1A'
-    # Point to a simulated image produced with mirisim and processed by the JWST
-    # pipeline through to the slope stage.
-    # We'll use this file to set up the appropriate file structure and header info
-    basefile='base_12SHORT.fits'
+    # Dithers positions 0,1,2,3,4 in Ideal coordinates
+    dxidl=np.array([0.,1.13872,-1.02753,1.02942,-1.13622])
+    dyidl=np.array([0.,-0.363763,0.294924,-0.291355,0.368474])
+    
+    # Select desired combination of dither positions
+    # Warning, this will fail if we have bad input!
+    dxidl=dxidl[dithers]
+    dyidl=dyidl[dithers]
+    nexp=len(dxidl)
+
+    # MRS reference location is DEFINED for 1A regardless of band in use
+    v2ref,v3ref=mt.abtov2v3(0.,0.,'1A')
+    
+    # Define source coordinates (decl=0 makes life easier)
+    raobj=45.0
+    decobj=0.0
+    # Make life easier by assuming that telescope roll exactly places
+    # slices along R.A. for Ch1A (will not be quite as good for other channels)
+    # Compute what that roll is
+    a2,b2=2.,0. # A location along alpha axis
+    v2_2,v3_2=mt.abtov2v3(a2,b2,'1A')
+    ra_2,dec_2,_=tt.jwst_v2v3toradec([v2_2],[v3_2],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=0.)
+    dra=(ra_2-raobj)*3600.
+    ddec=(dec_2-decobj)*3600.
+    roll=-(np.arctan2(dra,ddec)*180./np.pi-90.0)
+
+    # Compute the corresponding raref, decref of the dither positions.
+    raref=np.zeros(nexp)
+    decref=np.zeros(nexp)
+    for ii in range(0,nexp):
+        temp1,temp2,_=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
+        raref[ii]=temp1
+        decref[ii]=temp2
+
+    # Values for each exposure
+    allexp=np.zeros([nexp,1024,1032])
+    
+    # Do left half of detector
+    print('Working on left half of detector')
+    allexp = setvalues(allexp,left,raobj,decobj,roll,dxidl,dyidl)
+    
+    # Do right half of detector
+    print('Working on right half of detector')
+    allexp = setvalues(allexp,right,raobj,decobj,roll,dxidl,dyidl)
+
+    # Write the exposures to disk
+    print('Writing files')
+    basefile=get_template(detband)
+    for ii in range(0,nexp):
+        thisexp=allexp[ii,:,:]
+        newfile='mock'+detband+'-'+str(ii)+'.fits'
+        hdu=fits.open(basefile)
+        # Hack header WCS
+        header=hdu['SCI'].header
+        header['V2_REF']=v2ref
+        header['V3_REF']=v3ref
+        header['RA_REF']=raref[ii]
+        header['DEC_REF']=decref[ii]
+        header['ROLL_REF']=roll[0]
+        hdu['SCI'].header=header
+        hdu['SCI'].data=thisexp
+        
+        hdu.writeto(newfile,overwrite=True)
+
+    print('Done!')
+    
+#############################
+
+# Read in the appropriate Lvl2b template file for this channel/band.  These are files in which
+# much of the actual pixel data has been zeroed out so that the files can be compressed to be
+# very small
+
+def get_template(detband):
+    rootdir=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+    if (detband == '12A'):
+        file='template_12A.fits.gz'
+    elif (detband == '12B'):
+        file='template_12B.fits'
+    elif (detband == '12C'):
+        file='template_12C.fits'
+    elif (detband == '34A'):
+        file='template_34A.fits.gz'
+    elif (detband == '34B'):
+        file='template_34B.fits'
+    elif (detband == '34C'):
+        file='template_34C.fits'
+        
+    rootdir=os.path.join(rootdir,'data/lvl2btemplate/')
+    reffile=os.path.join(rootdir,file)
+   
+    return reffile
+
+#############################
+
+# Very rough estimate of the PSF FWHM
+
+def rough_fwhm(band):
+    if (band == '1A'):
+        fwhm=0.31
+    elif (band == '1B'):
+        fwhm=0.31
+    elif (band == '1C'):
+        fwhm=0.31
+    elif (band == '2A'):
+        fwhm=0.31
+    elif (band == '2B'):
+        fwhm=0.36
+    elif (band == '2C'):
+        fwhm=0.42
+    elif (band == '3A'):
+        fwhm=0.48
+    elif (band == '3B'):
+        fwhm=0.56
+    elif (band == '3C'):
+        fwhm=0.65
+    elif (band == '4A'):
+        fwhm=0.75
+    elif (band == '4B'):
+        fwhm=0.87
+    elif (band == '4C'):
+        fwhm=1.0
+        
+    return fwhm
+   
+#############################
+
+def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
+    # Define the slice width
     swidth=mt.slicewidth(band)
-    # PSF fwhm; approximate it by a gaussian for now and hard-code it
-    fwhm_input=0.349 # arcsec
+    # PSF fwhm; approximate it by a gaussian for now that is constant in each band
+    fwhm_input=rough_fwhm(band)
 
     print('Setting up the coordinates')
     
@@ -81,10 +239,7 @@ def main():
 
     print('Setting up the scene')
     
-    # Set up the scene in RA/DEC
-    # Use decl=0 to make life easier
-    raobj=45.0
-    decobj=0.0
+    # Set up the scene
     scene_xsize=10.#arcsec
     scene_ysize=10.#arcsec
     # Scene sampling
@@ -98,7 +253,7 @@ def main():
     scene[xcen,ycen]=1000.0
     # Convolve with gaussian PSF
     scene=ndimage.gaussian_filter(scene,fwhm_input/dx/2.35)
-    # Set up header WCS
+    # Set up header WCS for the scene
     hdu=fits.PrimaryHDU(scene)
     hdu.header['CD1_1']=dx/3600.
     hdu.header['CD2_2']=dy/3600.
@@ -110,8 +265,9 @@ def main():
     hdu.header['CUNIT2']='deg'
     hdu.header['CTYPE1']='RA---TAN'
     hdu.header['CTYPE2']='DEC--TAN'
-    
-    hdu.writeto('scene.fits',overwrite=True)
+
+    # Write scene to a file for debugging
+    hdu.writeto('scene-'+band+'.fits',overwrite=True)
 
     print('Projecting scene')
     
@@ -122,31 +278,17 @@ def main():
     # MRS reference location
     v2ref,v3ref=mt.abtov2v3(0.,0.,'1A')
 
-    # Make life easier by assuming that telescope roll exactly places
-    # slices along R.A.
-    # Compute what that roll is
-    a2,b2=2.,0.
-    v2_2,v3_2=mt.abtov2v3(a2,b2,'1A')
-    ra_2,dec_2,_=tt.jwst_v2v3toradec([v2_2],[v3_2],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=0.)
-    dra=(ra_2-raobj)*3600.
-    ddec=(dec_2-decobj)*3600.
-    roll=-(np.arctan2(dra,ddec)*180./np.pi-90.0)
-
-    # Set up individual dithered exposures.  Standard Pt-source ALL pattern
-    nexp=4
-    dxidl=np.array([1.13872,-1.02753,1.02942,-1.13622])
-    dyidl=np.array([-0.363763,0.294924,-0.291355,0.368474])
-    # Note that dxidl, dyidl oriented similarly to v2,v3 but with a flip
-    # Compute the corresponding raref, decref
-    raref=np.zeros(4)
-    decref=np.zeros(4)
+    # Set up individual dithered exposures.
+    nexp=len(dxidl)
+    # Compute the corresponding raref, decref for each exposure
+    raref=np.zeros(nexp)
+    decref=np.zeros(nexp)
     for ii in range(0,nexp):
         temp1,temp2,_=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
         raref[ii]=temp1
         decref[ii]=temp2
 
     # Compute values for each exposure
-    allexp=np.zeros([nexp,1024,1032])
     for ii in range(0,nexp):
         print('Working on exposure',ii)
         thisexp=allexp[ii,:,:]
@@ -173,27 +315,6 @@ def main():
             y_ll,y_ur=np.min([y1[jj],y2[jj]]),np.max([y1[jj],y2[jj]])+1
             
             earea=(x_ur-x_ll)*(y_ur-y_ll)*dx*dy# Effective area in arcsec2 for the surface brightness normalization
-            #if ((baselambda[jj] > 5.3)&(baselambda[jj] < 5.3015)):
-            #    thisexp[basey[jj],basex[jj]]=np.sum(scene2[y_ll:y_ur,x_ll:x_ur])/earea
-            #else:
-            #    thisexp[basey[jj],basex[jj]]=np.sum(scene[y_ll:y_ur,x_ll:x_ur])/earea
             thisexp[basey[jj],basex[jj]]=np.sum(scene[y_ll:y_ur,x_ll:x_ur])/earea
 
-        # Copy template info to new file
-        print('Writing file')
-        newfile='mock'+str(ii)+'.fits'
-        hdu=fits.open(basefile)
-        # Hack header WCS
-        header=hdu['SCI'].header
-        header['V2_REF']=v2ref
-        header['V3_REF']=v3ref
-        header['RA_REF']=raref[ii]
-        header['DEC_REF']=decref[ii]
-        header['ROLL_REF']=roll[0]
-        hdu['SCI'].header=header
-        hdu['SCI'].data=thisexp
-        
-        hdu.writeto(newfile,overwrite=True)
-
-    # All done!
-    print('Done')
+    return allexp

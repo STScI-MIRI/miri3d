@@ -15,6 +15,7 @@ REVISION HISTORY:
 01-Apr-2016  IDL version written by David Law (dlaw@stsci.edu)
 08-Apr-2019  Adapted to python by Yannis Argyriou
 22-May-2019  Adapted from notebook format (D. Law)
+25-Jul-2019  Add rough guesses for bands 1B-4C (D. Law)
 """
 
 import os as os
@@ -39,7 +40,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     outdir=indir+'/pystack/'
     if os.path.exists(outdir) is False:
         os.system('mkdir {}'.format(outdir))
-    outcube=outdir+'pycube.fits'
+    outcube=outdir+'pycube'+band+'.fits'
     outslice=outdir+'slice.fits'
     outcollapse=outdir+'collapse.fits'
     
@@ -64,12 +65,155 @@ def setcube(filenames,band,wtype=1,**kwargs):
           lammax=5.75# Max wavelength
 
           # Output cube parameters
-          expsig_arcsec=0.1#0.1
-          rlim_arcsec=0.4#0.4
-          rlimz_mic=0.0025#
+          expsig_arcsec=0.1
+          rlim_arcsec=0.4
+          rlimz_mic=0.0025
           ps_x=0.13# arcsec
           ps_y=0.13# arcsec
           ps_z=0.001# micron
+    elif (band == '1B'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=5.65# Minimum wavelength
+          lammax=6.64# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.1
+          rlim_arcsec=0.4
+          rlimz_mic=0.0025
+          ps_x=0.13# arcsec
+          ps_y=0.13# arcsec
+          ps_z=0.001# micron
+    elif (band == '1C'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=6.52# Minimum wavelength
+          lammax=7.66# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.1
+          rlim_arcsec=0.4
+          rlimz_mic=0.0025
+          ps_x=0.13# arcsec
+          ps_y=0.13# arcsec
+          ps_z=0.001# micron
+    elif (band == '2A'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=7.49# Minimum wavelength
+          lammax=8.78# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.15
+          rlim_arcsec=0.6
+          rlimz_mic=0.005
+          ps_x=0.17# arcsec
+          ps_y=0.17# arcsec
+          ps_z=0.002# micron
+    elif (band == '2B'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=8.65# Minimum wavelength
+          lammax=10.14# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.15
+          rlim_arcsec=0.6
+          rlimz_mic=0.005
+          ps_x=0.17# arcsec
+          ps_y=0.17# arcsec
+          ps_z=0.002# micron
+    elif (band == '2C'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=9.99# Minimum wavelength
+          lammax=11.71# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.15
+          rlim_arcsec=0.6
+          rlimz_mic=0.005
+          ps_x=0.17# arcsec
+          ps_y=0.17# arcsec
+          ps_z=0.002# micron
+    elif (band == '3A'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=11.53# Minimum wavelength
+          lammax=13.48# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.2
+          rlim_arcsec=0.9
+          rlimz_mic=0.007
+          ps_x=0.2# arcsec
+          ps_y=0.2# arcsec
+          ps_z=0.003# micron
+    elif (band == '3B'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=13.37# Minimum wavelength
+          lammax=15.63# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.2
+          rlim_arcsec=0.9
+          rlimz_mic=0.007
+          ps_x=0.2# arcsec
+          ps_y=0.2# arcsec
+          ps_z=0.003# micron
+    elif (band == '3C'):
+          xmin=510# Minimum x pixel
+          xmax=1025# Maximum x pixel
+          lammin=15.44# Minimum wavelength
+          lammax=18.05# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.2
+          rlim_arcsec=0.9
+          rlimz_mic=0.007
+          ps_x=0.2# arcsec
+          ps_y=0.2# arcsec
+          ps_z=0.003# micron
+    elif (band == '4A'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=17.66# Minimum wavelength
+          lammax=20.92# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.3
+          rlim_arcsec=1.8
+          rlimz_mic=0.012
+          ps_x=0.35# arcsec
+          ps_y=0.35# arcsec
+          ps_z=0.006# micron
+    elif (band == '4B'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=20.54# Minimum wavelength
+          lammax=24.40# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.3
+          rlim_arcsec=1.8
+          rlimz_mic=0.012
+          ps_x=0.35# arcsec
+          ps_y=0.35# arcsec
+          ps_z=0.006# micron
+    elif (band == '4C'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=23.95# Minimum wavelength
+          lammax=28.45# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.3
+          rlim_arcsec=1.8
+          rlimz_mic=0.012
+          ps_x=0.35# arcsec
+          ps_y=0.35# arcsec
+          ps_z=0.006# micron 
     else:
         print('Not implemented!')
         sys.exit(-1)
