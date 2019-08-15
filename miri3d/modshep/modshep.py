@@ -448,7 +448,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     hdu.header['CTYPE3']='WAVE'
     hdu.header['CTYPE1']='RA---TAN'
     hdu.header['CTYPE2']='DEC--TAN'
-    
+    hdu.header['BUNIT']='mJy/arcsec^2'
+    hdu.header['WTYPE']=wtype
     
     # Write to file
     hdu.writeto(outcube,overwrite=True)
