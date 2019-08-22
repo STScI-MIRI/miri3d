@@ -147,15 +147,15 @@ def get_template(detband):
     if (detband == '12A'):
         file='template_12A.fits.gz'
     elif (detband == '12B'):
-        file='template_12B.fits'
+        file='template_12B.fits.gz'
     elif (detband == '12C'):
-        file='template_12C.fits'
+        file='template_12C.fits.gz'
     elif (detband == '34A'):
         file='template_34A.fits.gz'
     elif (detband == '34B'):
-        file='template_34B.fits'
+        file='template_34B.fits.gz'
     elif (detband == '34C'):
-        file='template_34C.fits'
+        file='template_34C.fits.gz'
         
     rootdir=os.path.join(rootdir,'data/lvl2btemplate/')
     reffile=os.path.join(rootdir,file)

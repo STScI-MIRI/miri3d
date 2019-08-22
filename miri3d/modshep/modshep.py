@@ -309,7 +309,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
         wrapind=np.where(master_ra > 180.)
         master_ra[wrapind]=master_ra[wrapind]-360.
         
-    medra=np.median(master_ra)
+    #medra=np.median(master_ra)
 
     # Declare maxima/minima of the cube range *before* doing any QA cuts for specific exposures
     lmin,lmax=lammin,lammax
@@ -317,6 +317,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     dec_min,dec_max=min(master_dec),max(master_dec)
     dec_ave=(dec_min+dec_max)/2.
     ra_ave=(ra_min+ra_max)/2.
+
     print('Wavelength limits: {} - {} micron'.format(round(lmin,2),round(lmax,2)))
     print('RA limits: {} - {} deg'.format(round(ra_min,4),round(ra_max,4)))
     print('DEC limits: {} - {} deg'.format(round(dec_min,4),round(dec_max,4)))
@@ -352,21 +353,22 @@ def setcube(filenames,band,wtype=1,**kwargs):
     nfinal=len(master_flux)
 
     # Tangent plane projection to xi/eta (spatial axes)
-    xi_min=3600.*(ra_min-ra_ave)*np.cos(dec_ave*np.pi/180.)
-    xi_max=3600.*(ra_max-ra_ave)*np.cos(dec_ave*np.pi/180.)
-    eta_min=3600.*(dec_min-dec_ave)
-    eta_max=3600.*(dec_max-dec_ave)
+    # Estimate min/max necessary xi/eta
+    xi_min0=3600.*(ra_min-ra_ave)*np.cos(dec_ave*np.pi/180.)
+    xi_max0=3600.*(ra_max-ra_ave)*np.cos(dec_ave*np.pi/180.)
+    eta_min0=3600.*(dec_min-dec_ave)
+    eta_max0=3600.*(dec_max-dec_ave)
 
-    # Define cube sizes
-    n1a=np.ceil(abs(xi_min)/ps_x)
-    n1b=np.ceil(abs(xi_max)/ps_x)
-    n2a=np.ceil(abs(eta_min)/ps_y)
-    n2b=np.ceil(abs(eta_max)/ps_y)
+    # Define integer cube sizes
+    n1a=np.ceil(abs(xi_min0)/ps_x)
+    n1b=np.ceil(abs(xi_max0)/ps_x)
+    n2a=np.ceil(abs(eta_min0)/ps_y)
+    n2b=np.ceil(abs(eta_max0)/ps_y)
     cube_xsize=int(n1a+n1b)
     cube_ysize=int(n2a+n2b)
 
     # Redefine xi/eta minima/maxima to exactly
-    # match pixel boundaries
+    # match integer pixel boundaries
     xi_min = -n1a*ps_x - ps_x/2.
     xi_max = n1b*ps_x + ps_x/2.
     eta_min = -n2a*ps_y - ps_y/2.
@@ -375,16 +377,20 @@ def setcube(filenames,band,wtype=1,**kwargs):
     print('XI limits: {} - {} deg'.format(round(xi_min,4),round(xi_max,4)))
     print('ETA limits: {} - {} deg'.format(round(eta_min,4),round(eta_max,4)))
 
-    xi=-3600.*(master_ra-ra_ave)*np.cos(dec_ave*np.pi/180.)
-    eta=3600.*(master_dec-dec_ave)
-    cube_x=(xi-xi_min-ps_x/2.)/ps_x
-    cube_y=(eta-eta_min-ps_y/2.)/ps_y
-
-    racen=ra_ave
-    decen=dec_ave
+    # Redefine x/y and ra/dec center point
+    # for adopted integer pixel boundaries
     xcen=n1a
     ycen=n2a
-
+    shiftra=(xi_min0-xi_min)/3600./np.cos(dec_ave*np.pi/180.)
+    shiftdec=(eta_min0-eta_min)/3600.
+    racen=ra_ave+shiftra
+    decen=dec_ave+shiftdec
+    
+    xi=-3600.*(master_ra-racen)*np.cos(decen*np.pi/180.)
+    eta=3600.*(master_dec-decen)
+    cube_x=(xi-xi_min-ps_x/2.)/ps_x
+    cube_y=(eta-eta_min-ps_y/2.)/ps_y
+    
     # Spectral axis
     zrange=lmax-lmin
     cube_zsize=int(np.ceil(zrange/ps_z))
