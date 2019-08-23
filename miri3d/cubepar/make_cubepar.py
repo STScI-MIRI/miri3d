@@ -17,6 +17,7 @@ from astropy.time import Time
 import datetime
 import os as os
 import numpy as np
+import miricoord.miricoord.mrs.mrs_tools as mt
 import pdb
 
 #############################
@@ -55,6 +56,40 @@ def make_cubepar():
     
     hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5])
     hdul.writeto(outfile,overwrite=True)
+
+#############################
+
+# Compute the min/max wavelength to use for cube building for a given channel
+
+def waveminmax(channel):
+    wimg=mt.waveimage(channel)
+    distfile=fits.open(mt.get_fitsreffile(channel))
+    slicemap=distfile['Slice_Number'].data
+    slicemap=slicemap[0,:,:]# Most permissive slice mask
+
+    # Zero out where wavelengths are zero
+    indx=np.where(wimg < 1.)
+    slicemap[indx]=0
+
+    # Find unique slice numbers
+    slicenum=np.unique(slicemap)
+    # Cut out the zero value
+    slicenum=slicenum[1:]
+    nslice=len(slicenum)
+
+    thislmin=np.zeros(nslice)
+    thislmax=np.zeros(nslice)
+    # Max and min wavelength in each slice
+    for jj in range(0,nslice):
+        indx=np.where(slicemap == slicenum[jj])
+        thislmin[jj]=np.min(wimg[indx])
+        thislmax[jj]=np.max(wimg[indx])
+
+    # Ensure overall min/max wavelengths are covered for all slices
+    lmin=np.max(thislmin)
+    lmax=np.min(thislmax)
+    
+    return lmin,lmax
 
 #############################
 
@@ -97,8 +132,28 @@ def make_ext0(now,thisfile):
 def make_ext1():    
     chan=np.array([1,1,1,2,2,2,3,3,3,4,4,4])
     bnd=np.array(['SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG','SHORT','MEDIUM','LONG'])
-    wmin=np.array([4.89,5.65,6.52,7.49,8.65,9.99,11.53,13.37,15.44,17.66,20.54,23.95])
-    wmax=np.array([5.75,6.64,7.66,8.78,10.14,11.71,13.48,15.63,18.05,20.92,24.40,28.45])
+
+    wmin1A,wmax1A=waveminmax('1A')
+    wmin1B,wmax1B=waveminmax('1B')
+    wmin1C,wmax1C=waveminmax('1C')
+    wmin2A,wmax2A=waveminmax('2A')
+    wmin2B,wmax2B=waveminmax('2B')
+    wmin2C,wmax2C=waveminmax('2C')
+    wmin3A,wmax3A=waveminmax('3A')
+    wmin3B,wmax3B=waveminmax('3B')
+    wmin3C,wmax3C=waveminmax('3C')
+    wmin4A,wmax4A=waveminmax('4A')
+    wmin4B,wmax4B=waveminmax('4B')
+    wmin4C,wmax4C=waveminmax('4C')
+
+    wmin=np.array([wmin1A,wmin1B,wmin1C,wmin2A,wmin2B,wmin2C,wmin3A,wmin3B,wmin3C,wmin4A,wmin4B,wmin4C])
+    wmax=np.array([wmax1A,wmax1B,wmax1C,wmax2A,wmax2B,wmax2C,wmax3A,wmax3B,wmax3C,wmax4A,wmax4B,wmax4C])
+
+    # Round wavelength ranges to two decimal places and add a small 10 nm buffer
+    # (don't want the VERY edge pixels)
+    wmin=np.round(wmin,2)+0.01
+    wmax=np.round(wmax,2)-0.01
+
     spaxsize=np.array([0.13,0.13,0.13,0.17,0.17,0.17,0.20,0.20,0.20,0.35,0.35,0.35])
     wsamp=np.array([0.001,0.001,0.001,0.002,0.002,0.002,0.003,0.003,0.003,0.006,0.006,0.006])
 
