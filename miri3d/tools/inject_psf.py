@@ -23,6 +23,7 @@ REVISION HISTORY:
 15-Nov-2017  IDL version written by David Law (dlaw@stsci.edu)
 30-May-2019  Adapted to python (D. Law)
 19-Jul-2019  Overhaul to work for more than Ch1A (D. Law)
+30-Aug-2019  Many tweaks, addition of beta scan pattern and high-precision option (D. Law)
 """
 
 import os as os
@@ -36,6 +37,7 @@ import miricoord.miricoord.tel.tel_tools as tt
 from scipy import ndimage
 from astropy.modeling import models, fitting
 
+import matplotlib.pyplot as plt
 import pdb
 
 #############################
@@ -47,10 +49,17 @@ import pdb
 #
 # Input detband is (e.g.) 12A, 34B, etc.
 
-def main(detband,dithers):
+def main(detband,dithers,betascan=False,highprec=False):
     # Set the distortion solution to use
     mt.set_toolversion('cdp8b')
 
+    # If doing the high-precision calculation we'll need some extra libraries
+    if (highprec == True):
+        import shapely
+        from shapely.geometry import Polygon, mapping
+        import shapely.geometry as sg
+        import descartes as dc
+    
     # Define the bands to use
     if (detband == '12A'):
         left,right='1A','2A'
@@ -68,10 +77,17 @@ def main(detband,dithers):
         print('Input detector/band not recognized!')
         
     print('Setting up the dithers')
-    
-    # Dithers positions 0,1,2,3,4 in Ideal coordinates
-    dxidl=np.array([0.,1.13872,-1.02753,1.02942,-1.13622])
-    dyidl=np.array([0.,-0.363763,0.294924,-0.291355,0.368474])
+
+    # If the betascan option was True, use dithers taken from a set scanning every 0.25 slice widths along beta direction
+    # Scan set up as dist=np.arange(-3,3.1,0.25), be=dist*slicewidth
+    # And then converted to Ideal coordinate offsets
+    if (betascan == True):
+        dxidl=np.array([-0.07425094, -0.06806336, -0.06187578, -0.0556882 , -0.04950062, -0.04331305, -0.03712547, -0.03093789, -0.02475031, -0.01856273, -0.01237516, -0.00618758, -0.        ,  0.00618758,  0.01237516, 0.01856273,  0.02475031,  0.03093789,  0.03712547,  0.04331305, 0.04950062,  0.0556882 ,  0.06187578,  0.06806336,  0.07425094])
+        dyidl=np.array([0.52758708,  0.48362149,  0.4396559 ,  0.39569031,  0.35172472, 0.30775913,  0.26379354,  0.21982795,  0.17586236,  0.13189677, 0.08793118,  0.04396559,  0.        , -0.04396559, -0.08793118, -0.13189677, -0.17586236, -0.21982795, -0.26379354, -0.30775913, -0.35172472, -0.39569031, -0.4396559 , -0.48362149, -0.52758708])
+    # Otherwise, use the normal dither pattern
+    else:
+        dxidl=np.array([0.,1.13872,-1.02753,1.02942,-1.13622])
+        dyidl=np.array([0.,-0.363763,0.294924,-0.291355,0.368474])
     
     # Select desired combination of dither positions
     # Warning, this will fail if we have bad input!
@@ -88,31 +104,38 @@ def main(detband,dithers):
     # Make life easier by assuming that telescope roll exactly places
     # slices along R.A. for Ch1A (will not be quite as good for other channels)
     # Compute what that roll is
+    a1,b1=0.,0.
     a2,b2=2.,0. # A location along alpha axis
+    v2_1,v3_1=mt.abtov2v3(a1,b1,'1A')
     v2_2,v3_2=mt.abtov2v3(a2,b2,'1A')
+    ra_1,dec_1,_=tt.jwst_v2v3toradec([v2_1],[v3_1],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=0.)
     ra_2,dec_2,_=tt.jwst_v2v3toradec([v2_2],[v3_2],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=0.)
-    dra=(ra_2-raobj)*3600.
-    ddec=(dec_2-decobj)*3600.
+    dra=(ra_2-ra_1)*3600.
+    ddec=(dec_2-dec_1)*3600.
     roll=-(np.arctan2(dra,ddec)*180./np.pi-90.0)
 
-    # Compute the corresponding raref, decref of the dither positions.
+    # Compute the corresponding raref, decref, rollref of the dither positions.
     raref=np.zeros(nexp)
     decref=np.zeros(nexp)
+    rollref=np.zeros(nexp)
     for ii in range(0,nexp):
-        temp1,temp2,_=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
+        temp1,temp2,temp3=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
         raref[ii]=temp1
         decref[ii]=temp2
+        rollref[ii]=temp3
 
     # Values for each exposure
     allexp=np.zeros([nexp,1024,1032])
     
     # Do left half of detector
     print('Working on left half of detector')
-    allexp = setvalues(allexp,left,raobj,decobj,roll,dxidl,dyidl)
+    roi=rough_fwhm(left)*3
+    allexp = setvalues(allexp,left,roi,raobj,decobj,roll,dxidl,dyidl,highprec=highprec)
     
     # Do right half of detector
     print('Working on right half of detector')
-    allexp = setvalues(allexp,right,raobj,decobj,roll,dxidl,dyidl)
+    roi=rough_fwhm(right)*3
+    allexp = setvalues(allexp,right,roi,raobj,decobj,roll,dxidl,dyidl,highprec=highprec)
 
     # Write the exposures to disk
     print('Writing files')
@@ -127,7 +150,7 @@ def main(detband,dithers):
         header['V3_REF']=v3ref
         header['RA_REF']=raref[ii]
         header['DEC_REF']=decref[ii]
-        header['ROLL_REF']=roll[0]
+        header['ROLL_REF']=rollref[ii]
         hdu['SCI'].header=header
         hdu['SCI'].data=thisexp
         
@@ -196,7 +219,7 @@ def rough_fwhm(band):
    
 #############################
 
-def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
+def setvalues(allexp,band,roi,raobj,decobj,roll,dxidl,dyidl,highprec=False):
     # Define the slice width
     swidth=mt.slicewidth(band)
     # PSF fwhm; approximate it by a gaussian for now that is constant in each band
@@ -205,37 +228,60 @@ def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
     print('Setting up the coordinates')
     
     # Define 0-indexed base x and y pixel number (1032x1024 grid)
-    basex,basey = np.meshgrid(np.arange(1032),np.arange(1024))
+    if ((band == '1A')or(band == '1B')or(band == '1C')):
+        detxmin,detxmax=0,519
+    if ((band == '2A')or(band == '2B')or(band == '2C')):
+        detxmin,detxmax=508,1032
+    if ((band == '3A')or(band == '3B')or(band == '3C')):
+        detxmin,detxmax=500,1032
+    if ((band == '4A')or(band == '4B')or(band == '4C')):
+        detxmin,detxmax=0,500
+        
+    basex,basey = np.meshgrid(np.arange(detxmin,detxmax),np.arange(1024))
     # Convert to 1d vectors
     basex=basex.reshape(-1)
     basey=basey.reshape(-1)
+    
     # Convert to base alpha,beta,lambda at pixel center
     values=mt.xytoabl(basex,basey,band)
     basealpha,basebeta=values['alpha'],values['beta']
     baselambda,slicenum=values['lam'],values['slicenum']
+
     # Convert to base alpha,beta,lambda at pixel lower-left
-    valuesl=mt.xytoabl(basex-0.499,basey-0.499,band)
-    basealphal,basebetal=valuesl['alpha'],valuesl['beta']
-    baselambdal,slicenuml=valuesl['lam'],valuesl['slicenum']
+    valuesll=mt.xytoabl(basex-0.4999,basey-0.4999,band)
+    basealphall,basebetall=valuesll['alpha'],valuesll['beta']-swidth/2.
+    baselambdall,slicenumll=valuesll['lam'],valuesll['slicenum']
     # Convert to base alpha,beta,lambda at pixel upper-right
-    valuesr=mt.xytoabl(basex+0.499,basey+0.499,band)
-    basealphar,basebetar=valuesr['alpha'],valuesr['beta']
-    baselambdar,slicenumr=valuesr['lam'],valuesr['slicenum']
-    
+    valuesur=mt.xytoabl(basex+0.4999,basey+0.4999,band)
+    basealphaur,basebetaur=valuesur['alpha'],valuesur['beta']+swidth/2.
+    baselambdaur,slicenumur=valuesur['lam'],valuesur['slicenum']
+
+    # Convert to base alpha,beta,lambda at pixel upper-left
+    valuesul=mt.xytoabl(basex-0.4999,basey+0.4999,band)
+    basealphaul,basebetaul=valuesul['alpha'],valuesul['beta']+swidth/2.
+    baselambdaul,slicenumul=valuesul['lam'],valuesul['slicenum']
+    # Convert to base alpha,beta,lambda at pixel lower-right
+    valueslr=mt.xytoabl(basex+0.4999,basey-0.4999,band)
+    basealphalr,basebetalr=valueslr['alpha'],valueslr['beta']-swidth/2.
+    baselambdalr,slicenumlr=valueslr['lam'],valueslr['slicenum']
+
     # Crop to only pixels on a real slice for this channel
-    index0=np.where((basealpha > -50)&(basealphal > -50)&(basealphar > -50))
+    temp=basealpha+basealphaul+basealphaur+basealphall+basealphalr
+    index0=np.where(temp > -50)
     basex,basey=basex[index0],basey[index0]
     basealpha,basebeta=basealpha[index0],basebeta[index0]
     baselambda,slicenum=baselambda[index0],slicenum[index0]
-    basealphal,basebetal=basealphal[index0],basebetal[index0]
-    baselambdal,slicenuml=baselambdal[index0],slicenuml[index0]
-    basealphar,basebetar=basealphar[index0],basebetar[index0]
-    baselambdar,slicenumr=baselambdar[index0],slicenumr[index0]
+    basealphall,basealphalr=basealphall[index0],basealphalr[index0]
+    basealphaul,basealphaur=basealphaul[index0],basealphaur[index0]
+    basebetall,basebetalr=basebetall[index0],basebetalr[index0]
+    basebetaul,basebetaur=basebetaul[index0],basebetaur[index0]
 
-    # Convert all alpha,beta base locations to v2,v3 base locations
+    # Convert to v2,v3 projected base locations
     basev2,basev3=mt.abtov2v3(basealpha,basebeta,band)
-    basev2l,basev3l=mt.abtov2v3(basealphal,basebetal,band)
-    basev2r,basev3r=mt.abtov2v3(basealphar,basebetar,band)
+    basev2ll,basev3ll=mt.abtov2v3(basealphall,basebetall,band)
+    basev2ul,basev3ul=mt.abtov2v3(basealphaul,basebetaul,band)
+    basev2lr,basev3lr=mt.abtov2v3(basealphalr,basebetalr,band)
+    basev2ur,basev3ur=mt.abtov2v3(basealphaur,basebetaur,band)
 
     print('Setting up the scene')
     
@@ -243,14 +289,19 @@ def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
     scene_xsize=10.#arcsec
     scene_ysize=10.#arcsec
     # Scene sampling
-    dx,dy=0.001,0.001# arcsec/pixel
+    dx,dy=0.002,0.002# arcsec/pixel
     scene_nx=int(scene_xsize/dx)
     scene_ny=int(scene_ysize/dy)
     scene=np.zeros([scene_ny,scene_nx])
+    # Scene coordinates in 1d
+    scenex,sceney = np.meshgrid(np.arange(scene_ny),np.arange(scene_nx))
+    scenex=scenex.reshape(-1)
+    sceney=sceney.reshape(-1)
     # Put a point source in the middle
     xcen=int(scene_nx/2)
     ycen=int(scene_ny/2)
-    scene[xcen,ycen]=1000.0
+    scenetot=1.0
+    scene[xcen,ycen]=scenetot
     # Convolve with gaussian PSF
     scene=ndimage.gaussian_filter(scene,fwhm_input/dx/2.35)
     # Set up header WCS for the scene
@@ -265,10 +316,9 @@ def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
     hdu.header['CUNIT2']='deg'
     hdu.header['CTYPE1']='RA---TAN'
     hdu.header['CTYPE2']='DEC--TAN'
-
     # Write scene to a file for debugging
     hdu.writeto('scene-'+band+'.fits',overwrite=True)
-
+    
     print('Projecting scene')
     
     # Compute the RA,DEC of pixel 0,0 for later reference
@@ -283,38 +333,128 @@ def setvalues(allexp,band,raobj,decobj,roll,dxidl,dyidl):
     # Compute the corresponding raref, decref for each exposure
     raref=np.zeros(nexp)
     decref=np.zeros(nexp)
+    rollref=np.zeros(nexp)
     for ii in range(0,nexp):
-        temp1,temp2,_=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
+        temp1,temp2,temp3=tt.jwst_v2v3toradec([v2ref]-dxidl[ii],[v3ref]+dyidl[ii],v2ref=v2ref,v3ref=v3ref,raref=raobj,decref=decobj,rollref=roll)
         raref[ii]=temp1
         decref[ii]=temp2
-
+        rollref[ii]=temp3
+        
     # Compute values for each exposure
     for ii in range(0,nexp):
         print('Working on exposure',ii)
         thisexp=allexp[ii,:,:]
         print('Doing coordinate projection')
         # Convert central pixel locations to RA/DEC
-        ra,dec,_=tt.jwst_v2v3toradec(basev2,basev3,v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=roll)
-        # Lower-left pixel edges
-        ral,decl,_=tt.jwst_v2v3toradec(basev2l,basev3l,v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=roll)
-        # Upper-right pixel edges
-        rar,decr,_=tt.jwst_v2v3toradec(basev2r,basev3r,v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=roll)
-        # Top/bottom locations
-        dec_upper=dec+swidth/2./3600.
-        dec_lower=dec-swidth/2./3600.
+        ra,dec,_=tt.jwst_v2v3toradec(basev2,basev3,v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
 
-        npix=len(basev2)
-        x1=(np.round((ral-ra0)/(dx/3600.))).astype(int)
-        x2=(np.round((rar-ra0)/(dx/3600.))).astype(int)
-        y1=(np.round((dec_lower-dec0)/(dy/3600.))).astype(int)
-        y2=(np.round((dec_upper-dec0)/(dy/3600.))).astype(int)
+        # Throw away everything not within the ROI (in arcsec) to save time
+        dist=np.sqrt((ra-raobj)*(ra-raobj)+(dec-decobj)*(dec-decobj))*3600.
+        close=np.where(dist <= roi)
+        close=close[0]# silly python thing to get indices
+        ra=ra[close]
+        dec=dec[close]
+        thisbasex=basex[close]
+        thisbasey=basey[close]
+        
+        # Lower-left pixel edges
+        rall,decll,_=tt.jwst_v2v3toradec(basev2ll[close],basev3ll[close],v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
+        # Upper-right pixel edges
+        raur,decur,_=tt.jwst_v2v3toradec(basev2ur[close],basev3ur[close],v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
+        # Lower-right pixel edges
+        ralr,declr,_=tt.jwst_v2v3toradec(basev2lr[close],basev3lr[close],v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
+        # Upper-left pixel edges
+        raul,decul,_=tt.jwst_v2v3toradec(basev2ul[close],basev3ul[close],v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
+
+        npix=len(ra)
+        xll=(rall-ra0)/(dx/3600.)
+        xlr=(ralr-ra0)/(dx/3600.)
+        xul=(raul-ra0)/(dx/3600.)
+        xur=(raur-ra0)/(dx/3600.)
+
+        yll=(decll-dec0)/(dy/3600.)
+        ylr=(declr-dec0)/(dy/3600.)
+        yul=(decul-dec0)/(dy/3600.)
+        yur=(decur-dec0)/(dy/3600.)
+
+        # Strictly this defines a tilted box in the scene, but empirically
+        # it's close enough to a simple rectangle (since we aligned the
+        # telescope orient properly) that we can simplify it with basic
+        # x/y boundaries
+        x1=(np.round(xll)).astype(int)
+        x2=(np.round(xlr)).astype(int)
+        y1=(np.round(yll)).astype(int)
+        y2=(np.round(yur)).astype(int)
+
+        #junk=np.where(slicenum == 10)
+        #plt.plot(ra[junk],dec_upper[junk],'.',color='b')
+        #plt.plot(ra[junk],dec_lower[junk],'.',color='b')
+        #plt.plot(ra[junk],decb[junk],'.',color='r')
+        #plt.plot(ra[junk],dect[junk],'.',color='g')
+        #plt.savefig('test.pdf')
+        #pdb.set_trace()   
+
+        # Scene mask for high-precision calculation
+        mask=scene.copy()
         
         print('Doing pixel value computation')
-        for jj in range(0,npix):
-            x_ll,x_ur=np.min([x1[jj],x2[jj]]),np.max([x1[jj],x2[jj]])+1
-            y_ll,y_ur=np.min([y1[jj],y2[jj]]),np.max([y1[jj],y2[jj]])+1
-            
-            earea=(x_ur-x_ll)*(y_ur-y_ll)*dx*dy# Effective area in arcsec2 for the surface brightness normalization
-            thisexp[basey[jj],basex[jj]]=np.sum(scene[y_ll:y_ur,x_ll:x_ur])/earea
+        nhigh=0 # Number of high-precision calculations done
+        for jj in range(0,npix):         
+            xleft,xright=np.min([x1[jj],x2[jj]]),np.max([x1[jj],x2[jj]])+1
+            ybot,ytop=np.min([y1[jj],y2[jj]]),np.max([y1[jj],y2[jj]])+1
 
+            # High-precision area
+            if (highprec == True):
+                polygon = sg.Polygon([(xll[jj], yll[jj]), (xlr[jj],ylr[jj]), (xur[jj], yur[jj]), (xul[jj], yul[jj])])
+                earea=polygon.area*dx*dy
+            # Basic area
+            else:
+                earea=(xright-xleft)*(ytop-ybot)*dx*dy# Effective area in arcsec2 for the surface brightness normalization
+            
+            # Basic summation value from boxcar
+            thevalue=np.sum(scene[ybot:ytop,xleft:xright])
+            
+            # If this pixel contains a large fraction of flux and highprec is selected, do precise calculation
+            if ((highprec == True)&(thevalue > 0.02*scenetot)):
+                nhigh=nhigh+1
+                mask[:,:]=0
+                # Temporarily 0.5 near ege of coverage box
+                mask[ybot-2:ytop+2,xleft-2:xright+2]=0.5
+                # Unity in the middle of coverage box
+                mask[ybot+2:ytop-2,xleft+2:xright-2]=1
+                # Convert to 1d vector
+                mask=mask.reshape(-1)
+                totest=(np.where(mask == 0.5))[0]
+                ntest=len(totest)
+
+                # Loop over all scene pixels near the edge of the detector pixel projection to compute overlap area
+                for kk in range(0,ntest):
+                    oi=totest[kk]
+                    pixpoly=sg.Polygon([(scenex[oi]-0.5,sceney[oi]-0.5),(scenex[oi]+0.5,sceney[oi]-0.5),(scenex[oi]+0.5,sceney[oi]+0.5),(scenex[oi]-0.5,sceney[oi]+0.5)])
+                    overlap=pixpoly.intersection(polygon).area
+                    mask[oi]=overlap
+                    #if ((overlap > 0)&(overlap < 1)):
+                    #    fig = plt.figure()
+                    #    ax = fig.add_axes((0.1,0.1,0.8,0.8))
+                    #    patch = dc.PolygonPatch(pixpoly, facecolor=[0,0,0.9], edgecolor=[1,1,1], alpha=0.5)
+                    #    ax.add_patch(patch)
+                    #    patch2 = dc.PolygonPatch(polygon, facecolor=[0,0.9,0.], edgecolor=[1,1,1], alpha=0.5)
+                    #    ax.add_patch(patch2)
+                    #    plt.xlim([scenex[oi]-10,scenex[oi]+10])
+                    #    plt.ylim([sceney[oi]-10,sceney[oi]+10])
+                    #    ax.set_aspect(1)
+                    #    plt.show()
+                    #    pdb.set_trace()
+                # Remap mask from 1d array to 2d
+                mask=mask.reshape(scene_ny,scene_nx)
+                # Multiply it by the scene and integrate
+                mscene=mask*scene
+                thevalue=np.sum(mscene)
+                
+            # Normalize by the detector pixel projected area
+            thisexp[thisbasey[jj],thisbasex[jj]]=thevalue/earea
+
+        if (highprec == True):
+            print('Nhigh precision calcs:',nhigh)
+              
     return allexp

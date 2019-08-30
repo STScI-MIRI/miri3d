@@ -62,7 +62,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
           lammin=4.89# Minimum wavelength
-          lammax=5.75# Max wavelength
+          lammax=5.00#5.74# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -74,8 +74,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '1B'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=5.65# Minimum wavelength
-          lammax=6.64# Max wavelength
+          lammin=5.64# Minimum wavelength
+          lammax=6.62# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -87,8 +87,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '1C'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=6.52# Minimum wavelength
-          lammax=7.66# Max wavelength
+          lammin=6.42# Minimum wavelength
+          lammax=7.51# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -101,7 +101,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=7.49# Minimum wavelength
-          lammax=8.78# Max wavelength
+          lammax=8.75# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -113,8 +113,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '2B'):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
-          lammin=8.65# Minimum wavelength
-          lammax=10.14# Max wavelength
+          lammin=8.72# Minimum wavelength
+          lammax=9.00#10.22# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -126,8 +126,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '2C'):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
-          lammin=9.99# Minimum wavelength
-          lammax=11.71# Max wavelength
+          lammin=10.03# Minimum wavelength
+          lammax=11.74# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -153,7 +153,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=13.37# Minimum wavelength
-          lammax=15.63# Max wavelength
+          lammax=15.64# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.2
@@ -166,7 +166,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=15.44# Minimum wavelength
-          lammax=18.05# Max wavelength
+          lammax=18.07# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.2
@@ -179,7 +179,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
           lammin=17.66# Minimum wavelength
-          lammax=20.92# Max wavelength
+          lammax=20.93# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -191,8 +191,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '4B'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=20.54# Minimum wavelength
-          lammax=24.40# Max wavelength
+          lammin=20.42# Minimum wavelength
+          lammax=24.21# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -204,8 +204,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '4C'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=23.95# Minimum wavelength
-          lammax=28.45# Max wavelength
+          lammin=23.89# Minimum wavelength
+          lammax=28.33# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -246,6 +246,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     basebeta=basebeta[index0]
     basealpha=basealpha[index0]
     baselambda=baselambda[index0]
+    
     npix=len(slicenum)
     # Convert to v2,v3 base locations
     basev2,basev3=mt.abtov2v3(basealpha,basebeta,band)
@@ -321,7 +322,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     print('Wavelength limits: {} - {} micron'.format(round(lmin,2),round(lmax,2)))
     print('RA limits: {} - {} deg'.format(round(ra_min,4),round(ra_max,4)))
     print('DEC limits: {} - {} deg'.format(round(dec_min,4),round(dec_max,4)))
-
+    
     # Eliminate any pixels with bad DQ flags (0,3,9,10,11,14,16)
     temp=(((master_dq & 2**0) == 0) & ((master_dq & 2**3) == 0) & ((master_dq & 2**9) == 0) & ((master_dq & 2**10) == 0) & ((master_dq & 2**11) == 0) & ((master_dq & 2**14) == 0) & ((master_dq & 2**16) == 0))
     good=np.where(temp == True)
@@ -657,3 +658,156 @@ def core(x,y,z,f, dim_out, expsig, rlim, scale, wtype, **kwargs):
                     pdb.set_trace()
                         
     return fcube
+
+###########
+
+# Simple sum up detector to test Yannis approach
+
+def simplesum(filenames,band):
+    # Set the distortion solution to use
+    mt.set_toolversion('cdp8b')
+
+    nfiles=len(filenames)
+    indir = os.path.dirname(os.path.realpath(filenames[0]))
+
+    # Mid-pixel wavelength
+    waveimg=mt.waveimage(band)
+    waveimg_1d=waveimg.reshape(-1)
+    # Bottom-pixel wavelength
+    waveimg0=mt.waveimage(band,loc='bot')
+    waveimg0_1d=waveimg0.reshape(-1)
+    # Top-pixel wavelength
+    waveimg1=mt.waveimage(band,loc='top')
+    waveimg1_1d=waveimg1.reshape(-1)
+    
+    # Basic header information from the first file
+    head0=fits.open(filenames[0])[0].header
+    head1=fits.open(filenames[0])[1].header
+
+    # simulated or ground-test data?
+    if (head0['ORIGIN'] == 'MIRI European Consortium'):
+        obs_type = 'mirisim'
+        databand=head0['BAND']
+        datadet=head0['DETECTOR'] # MIRIFUSHORT or MIRIFULONG
+    else:
+        print('Non-mirisim not implemented!')
+        sys.exit(-1)
+
+    # Band-specific cube-building parameters
+    if (band == '1A'):
+          xmin=8# Minimum x pixel
+          xmax=509# Maximum x pixel
+          lammin=4.89# Minimum wavelength
+          lammax=5.74# Max wavelength
+
+          # Output cube parameters
+          expsig_arcsec=0.1
+          rlim_arcsec=0.4
+          rlimz_mic=0.0025
+          ps_x=0.13# arcsec
+          ps_y=0.13# arcsec
+          ps_z=0.001# micron
+
+    else:
+        print('Not implemented!')
+        sys.exit(-1)
+
+    # Note that we're assuming that the inputs have already been put
+    # into surface brightness units, that divide out the specific pixel area
+
+    print('Defining base reference coordinates')
+    
+    # Define 0-indexed base x and y pixel number
+    basex,basey = np.meshgrid(np.arange(1032),np.arange(1024))
+    # Convert to 1d vectors
+    basex=basex.reshape(-1)
+    basey=basey.reshape(-1)
+    # Convert to base alpha,beta,lambda
+    values=mt.xytoabl(basex,basey,band)
+    basealpha=values['alpha']
+    basebeta=values['beta']
+    baselambda=values['lam']
+    slicenum=values['slicenum']
+
+    # Define an index that crops full detector to only pixels on a real slice
+    # for this band
+    index0=(np.where(baselambda > 0))[0]
+    #dummy = slicenum.copy()
+    # Apply the crop for the base locations
+    slicenum=slicenum[index0]
+    basex=basex[index0]
+    basey=basey[index0]
+    basebeta=basebeta[index0]
+    basealpha=basealpha[index0]
+    baselambda=baselambda[index0]
+    waveimg_1d=waveimg_1d[index0]
+    waveimg0_1d=waveimg0_1d[index0]
+    waveimg1_1d=waveimg1_1d[index0]
+    npix=len(slicenum)
+    # Convert to v2,v3 base locations
+    basev2,basev3=mt.abtov2v3(basealpha,basebeta,band)
+
+    # Create master vector of fluxes and v2,v3 locations
+    master_flux=np.zeros(npix*nfiles)
+    master_ra=np.zeros(npix*nfiles)
+    master_dec=np.zeros(npix*nfiles)
+    master_lam=np.zeros(npix*nfiles)
+    master_expnum=np.zeros(npix*nfiles)
+    master_dq=np.zeros(npix*nfiles,dtype=int)
+    # Extra vectors for debugging
+    master_detx=np.zeros(npix*nfiles) # 0-indexed
+    master_dety=np.zeros(npix*nfiles) # 0-indexed
+    master_v2=np.zeros(npix*nfiles)
+    master_v3=np.zeros(npix*nfiles)
+
+    ########
+
+    print('Reading',nfiles,'inputs')
+    # Loop over input files reading them into master vectors
+    for i in range(0,nfiles):
+        hdu = fits.open(filenames[i])
+        img=hdu['SCI'].data
+        dq=hdu['DQ'].data
+        head0=hdu[0].header
+        head1=hdu['SCI'].header
+
+        # Pull out the fluxes identified earlier as illuminated spaxels
+        thisflux=(img.reshape(-1))[index0]
+        thisdq=(dq.reshape(-1))[index0]
+        # Put them in the big vectors
+        master_flux[i*npix:(i+1)*npix]=thisflux
+        master_dq[i*npix:(i+1)*npix]=thisdq
+
+        # Put other stuff in the big vectors for debugging
+        master_v2[i*npix:(i+1)*npix]=basev2
+        master_v3[i*npix:(i+1)*npix]=basev3
+        master_detx[i*npix:(i+1)*npix]=basex
+        master_dety[i*npix:(i+1)*npix]=basey
+        master_expnum[i*npix:(i+1)*npix]=i
+        master_lam[i*npix:(i+1)*npix]=baselambda
+
+        # Transform v2,v3 coordinates to RA,dec for this exposure
+        raref= head1['RA_REF']
+        decref= head1['DEC_REF']
+        v2ref= head1['V2_REF']
+        v3ref= head1['V3_REF']
+        rollref= head1['ROLL_REF']
+        ra,dec,_=tt.jwst_v2v3toradec(basev2,basev3,raref=raref,decref=decref,v2ref=v2ref,v3ref=v3ref,rollref=rollref)
+        # Put it in the big vectors
+        master_ra[i*npix:(i+1)*npix]=ra
+        master_dec[i*npix:(i+1)*npix]=dec
+
+    #######
+
+    lvec=np.arange(lammin,lammax,ps_z)
+    nwave=len(lvec)
+    spec=np.zeros(nwave)
+    for ii in range(0,nwave):
+        indx=np.where((waveimg0_1d <= lvec[ii])&(waveimg1_1d > lvec[ii]))
+        spec[ii]=np.sum(master_flux[indx])
+
+    return spec
+
+
+
+
