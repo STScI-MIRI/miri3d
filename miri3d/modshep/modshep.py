@@ -62,7 +62,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
           lammin=4.89# Minimum wavelength
-          lammax=5.75# Max wavelength
+          lammax=5.74# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -74,8 +74,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '1B'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=5.65# Minimum wavelength
-          lammax=6.64# Max wavelength
+          lammin=5.64# Minimum wavelength
+          lammax=6.62# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -87,8 +87,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '1C'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=6.52# Minimum wavelength
-          lammax=7.66# Max wavelength
+          lammin=6.42# Minimum wavelength
+          lammax=7.51# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -101,7 +101,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=7.49# Minimum wavelength
-          lammax=8.78# Max wavelength
+          lammax=8.75# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -113,8 +113,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '2B'):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
-          lammin=8.65# Minimum wavelength
-          lammax=10.14# Max wavelength
+          lammin=8.72# Minimum wavelength
+          lammax=10.22# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -126,8 +126,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '2C'):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
-          lammin=9.99# Minimum wavelength
-          lammax=11.71# Max wavelength
+          lammin=10.03# Minimum wavelength
+          lammax=11.74# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
@@ -153,7 +153,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=13.37# Minimum wavelength
-          lammax=15.63# Max wavelength
+          lammax=15.64# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.2
@@ -166,7 +166,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=15.44# Minimum wavelength
-          lammax=18.05# Max wavelength
+          lammax=18.07# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.2
@@ -179,7 +179,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
           lammin=17.66# Minimum wavelength
-          lammax=20.92# Max wavelength
+          lammax=20.93# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -191,8 +191,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '4B'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=20.54# Minimum wavelength
-          lammax=24.40# Max wavelength
+          lammin=20.42# Minimum wavelength
+          lammax=24.21# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -204,8 +204,8 @@ def setcube(filenames,band,wtype=1,**kwargs):
     elif (band == '4C'):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
-          lammin=23.95# Minimum wavelength
-          lammax=28.45# Max wavelength
+          lammin=23.89# Minimum wavelength
+          lammax=28.33# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.3
@@ -246,6 +246,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     basebeta=basebeta[index0]
     basealpha=basealpha[index0]
     baselambda=baselambda[index0]
+    
     npix=len(slicenum)
     # Convert to v2,v3 base locations
     basev2,basev3=mt.abtov2v3(basealpha,basebeta,band)
@@ -321,7 +322,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
     print('Wavelength limits: {} - {} micron'.format(round(lmin,2),round(lmax,2)))
     print('RA limits: {} - {} deg'.format(round(ra_min,4),round(ra_max,4)))
     print('DEC limits: {} - {} deg'.format(round(dec_min,4),round(dec_max,4)))
-
+    
     # Eliminate any pixels with bad DQ flags (0,3,9,10,11,14,16)
     temp=(((master_dq & 2**0) == 0) & ((master_dq & 2**3) == 0) & ((master_dq & 2**9) == 0) & ((master_dq & 2**10) == 0) & ((master_dq & 2**11) == 0) & ((master_dq & 2**14) == 0) & ((master_dq & 2**16) == 0))
     good=np.where(temp == True)
@@ -657,3 +658,4 @@ def core(x,y,z,f, dim_out, expsig, rlim, scale, wtype, **kwargs):
                     pdb.set_trace()
                         
     return fcube
+
