@@ -62,7 +62,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=8# Minimum x pixel
           xmax=509# Maximum x pixel
           lammin=4.89# Minimum wavelength
-          lammax=5.00#5.74# Max wavelength
+          lammax=5.74# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.1
@@ -114,7 +114,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
           xmin=510# Minimum x pixel
           xmax=1025# Maximum x pixel
           lammin=8.72# Minimum wavelength
-          lammax=9.00#10.22# Max wavelength
+          lammax=10.22# Max wavelength
 
           # Output cube parameters
           expsig_arcsec=0.15
