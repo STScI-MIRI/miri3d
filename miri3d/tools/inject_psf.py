@@ -332,7 +332,12 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
 
     # Set up individual dithered exposures.
     nexp=len(dxidl)
-        
+
+    # Stick something near-zero but not zero into all light-sensitive pixels
+    # just so that we can see where they are
+    for jj in range(0,len(basex)):
+        allexp[:,basey[jj],basex[jj]]=1e-7
+    
     # Compute values for each exposure
     for ii in range(0,nexp):
         print('Working on exposure',ii)
@@ -341,7 +346,7 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
         print('Doing coordinate projection')
         # Convert central pixel locations to RA/DEC
         ra,dec,_=tt.jwst_v2v3toradec(basev2,basev3,v2ref=v2ref,v3ref=v3ref,raref=raref[ii],decref=decref[ii],rollref=rollref[ii])
-
+        
         # Throw away everything not within the ROI (in arcsec) to save compute time
         dist=np.sqrt((ra-raobj)*(ra-raobj)+(dec-decobj)*(dec-decobj))*3600.
         close=np.where(dist <= roi)
@@ -434,7 +439,7 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
                 for jj in range(0,njj):
                     area=np.sum(thisoneimg[:,thisxleft[jj]:thisxright[jj]])*dx*dy
                     value=np.sum(thisscene[:,thisxleft[jj]:thisxright[jj]])
-                    thisexp[thisbasey[jj],thisbasex[jj]]=value/area
+                    thisexp[thisbasey[jj],thisbasex[jj]] += value/area
                     thisarea[thisbasey[jj],thisbasex[jj]]=area
         
     return allexp,allarea
