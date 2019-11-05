@@ -15,7 +15,8 @@ detband: Detector configuration to use (e.g., 12A)
 dithers: Dither positions to use (undithered, and standard 4-pt dither available)
 
 Example:
-inject_psf.main('12A',[1,2,3,4]) would give a standard 4-pt dither in Ch12A.
+inject_psf.main('12A',[1,2,3,4],1,1e-7) would give a standard 4-pt dither in Ch12A with a specified PSF total (total=1) and background/extended value (1e-7)
+inject_psf.main('12A',[1,2,3,4],0,1) would give a standard 4-pt dither in Ch12A with no specified PSF and an extended source with flat spectrum of 1
 
 Author: David R. Law (dlaw@stsci.edu)
 
@@ -50,7 +51,7 @@ import pdb
 #
 # Input detband is (e.g.) 12A, 34B, etc.
 
-def main(detband,dithers,betascan=False):
+def main(detband,dithers,psftot,extval,betascan=False):
     # Set the distortion solution to use
     mt.set_toolversion('cdp8b')
     
@@ -129,12 +130,12 @@ def main(detband,dithers,betascan=False):
     # Do left half of detector
     print('Working on left half of detector')
     roi=rough_fwhm(left)*3
-    allexp,allarea = setvalues(allexp,allarea,left,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl)
+    allexp,allarea = setvalues(allexp,allarea,left,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
     
     # Do right half of detector
     print('Working on right half of detector')
     roi=rough_fwhm(right)*3
-    allexp,allarea = setvalues(allexp,allarea,right,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl)
+    allexp,allarea = setvalues(allexp,allarea,right,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
 
     # Write the exposures to disk
     print('Writing files')
@@ -221,7 +222,7 @@ def rough_fwhm(band):
    
 #############################
 
-def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl):
+def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval):
     # Define the slice width
     swidth=mt.slicewidth(band)
     # PSF fwhm; approximate it by a gaussian for now that is constant in each band
@@ -302,8 +303,8 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
     # Put a point source in the middle
     xcen=int(scene_nx/2)
     ycen=int(scene_ny/2)
-    scenetot=1.0
-    scene[xcen,ycen]=scenetot
+   # psftot=1.0
+    scene[xcen,ycen]=psftot
     # Convolve with gaussian PSF
     scene=ndimage.gaussian_filter(scene,fwhm_input/dx/2.35)
     # Set up header WCS for the scene
@@ -336,7 +337,7 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
     # Stick something near-zero but not zero into all light-sensitive pixels
     # just so that we can see where they are
     for jj in range(0,len(basex)):
-        allexp[:,basey[jj],basex[jj]]=1e-7
+        allexp[:,basey[jj],basex[jj]]=extval #1e-7
     
     # Compute values for each exposure
     for ii in range(0,nexp):
