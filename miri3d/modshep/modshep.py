@@ -79,7 +79,7 @@ def setcube(filenames,band,wtype=1,**kwargs):
 
           # Output cube parameters
           expsig_arcsec=0.1
-          rlim_arcsec=0.4
+          rlim_arcsec=0.2
           rlimz_mic=0.0025
           ps_x=0.13# arcsec
           ps_y=0.13# arcsec
