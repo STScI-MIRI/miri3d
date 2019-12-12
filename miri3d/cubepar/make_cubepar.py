@@ -10,6 +10,8 @@ REVISION HISTORY:
 Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 18-Jul-2019  Convert to python (D. Law)
 19-Jul-2019  Add exponential weight extensions (D. Law)
+12-Dec-2019  Modify weights based on pipeline testing (D. Law)
+
 """
 
 from astropy.io import fits
@@ -35,23 +37,29 @@ def make_cubepar():
     outfile=os.path.join(outdir,filename)
     thisfile=__file__
     _,thisfile=os.path.split(thisfile)
-    
+
     # Create primary hdu (blank data with header)
+    print('Making 0th extension')
     hdu0=make_ext0(now,filename)
 
     # Create first extension (CUBEPAR: basic spaxel size, etc)
+    print('Making 1st extension')
     hdu1=make_ext1()
 
     # Create second extension (CUBEPAR_MSM: per-band 1/r2 weights and roi)
+    print('Making 2nd extension')
     hdu2=make_ext2()
 
     # Create third extension (MULTICHANNEL_MSM: multichannel 1/r2 weights and roi)
+    print('Making 3rd extension')
     hdu3=make_ext3()
 
     # Create the fourth extension (CUBEPAR_EMSM: per-band exponential weights and roi)
+    print('Making 4th extension')
     hdu4=make_ext4()
     
     # Create the fifth extension (MULTICHANNEL_EMSM: multichannel exponential weights and roi)
+    print('Making 5th extension')
     hdu5=make_ext5()
     
     hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5])
@@ -93,6 +101,41 @@ def waveminmax(channel):
 
 #############################
 
+# Compute the wavelength extrema for a given channel
+# (useful to set an inclusive simulation range)
+
+def waveextrema(channel):
+    wimg=mt.waveimage(channel)
+    distfile=fits.open(mt.get_fitsreffile(channel))
+    slicemap=distfile['Slice_Number'].data
+    slicemap=slicemap[0,:,:]# Most permissive slice mask
+
+    # Zero out where wavelengths are zero
+    indx=np.where(wimg < 1.)
+    slicemap[indx]=0
+
+    # Find unique slice numbers
+    slicenum=np.unique(slicemap)
+    # Cut out the zero value
+    slicenum=slicenum[1:]
+    nslice=len(slicenum)
+
+    thislmin=np.zeros(nslice)
+    thislmax=np.zeros(nslice)
+    # Max and min wavelength in each slice
+    for jj in range(0,nslice):
+        indx=np.where(slicemap == slicenum[jj])
+        thislmin[jj]=np.min(wimg[indx])
+        thislmax[jj]=np.max(wimg[indx])
+
+    # Extreme values across all slices
+    lmax=np.max(thislmax)
+    lmin=np.min(thislmin)
+    
+    return lmin,lmax
+
+#############################
+
 # Create blank primary extension and header with base instrument information
 
 def make_ext0(now,thisfile):
@@ -114,14 +157,15 @@ def make_ext0(now,thisfile):
     hdu.header['FILENAME']=thisfile
     hdu.header['USEAFTER']='2000-01-01T00:00:00'
     hdu.header['VERSION']=int(now.mjd)
-    hdu.header['AUTHOR']='B. Sargent and D. Law'
+    hdu.header['AUTHOR']='D. Law and B. Sargent'
     hdu.header['ORIGIN']='STSCI'
     hdu.header['HISTORY']='IFU Cube defaults'
     hdu.header['HISTORY']='DOCUMENT: TBD'
     hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/cubepar/make_cubepar.py'
-    hdu.header['HISTORY']='DATA USED: Simulated data created by B. Sargent and D. Law'
+    hdu.header['HISTORY']='DATA USED: Simulated data created by D. Law'
     hdu.header['HISTORY']='DIFFERENCES: Migrated to python creation code.'
-    hdu.header['HISTORY']='DIFFERENCES: Add support for e^(-r) weight function.'   
+    hdu.header['HISTORY']='DIFFERENCES: Add support for e^(-r) weight function.'
+    hdu.header['HISTORY']='Set parameters for 12 bands based on simulations.'
 
     return hdu
 
@@ -272,7 +316,7 @@ def make_ext4():
     # Rough guess at exponential scale radius as FWHM/3 (~ 1 sigma)
     scalerad=fwhm/3.
     # Rough guess at ROI limiting region
-    roispat=fwhm*1.3
+    roispat=fwhm
     # Rough guess at ROI spectral region
     roispec=np.array([0.0025,0.0025,0.0025,0.005,0.005,0.005,0.007,0.007,0.007,0.014,0.014,0.014])
 
@@ -305,7 +349,7 @@ def make_ext5():
     # Rough guess at exponential scale radius as FWHM/3 (~ 1 sigma)
     scalerad=fwhm/3.
     # Rough guess at ROI limiting region
-    roispat=fwhm*1.3
+    roispat=fwhm
     # Rough guess at ROI spectral region
     roispec=((0.014 - 0.0025)/(28.4186-4.89000))*(finalwave-4.890)+0.0025
 
