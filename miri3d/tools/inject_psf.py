@@ -147,6 +147,9 @@ def main(detband,dithers,psftot,extval,betascan=False):
         newareafile='mockarea'+detband+'-'+str(ii)+'.fits'
         hdu=fits.open(basefile)
         # Hack header WCS
+        primheader=hdu[0].header
+        primheader['RA_TARG']=raobj
+        primheader['DEC_TARG']=decobj
         header=hdu['SCI'].header
         header['V2_REF']=v2ref
         header['V3_REF']=v3ref
