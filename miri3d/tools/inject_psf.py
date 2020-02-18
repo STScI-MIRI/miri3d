@@ -13,6 +13,8 @@ into data cubes using the pipeline (or just use miri3d to do so).
 Required input:
 detband: Detector configuration to use (e.g., 12A)
 dithers: Dither positions to use (undithered, and standard 4-pt dither available)
+psftot: PSF total flux (in units of mJy)
+extval: Background surface brightness (units of MJy/sr)
 
 Example:
 inject_psf.main('12A',[1,2,3,4],1,1e-7) would give a standard 4-pt dither in Ch12A with a specified PSF total (total=1) and background/extended value (1e-7)
@@ -296,6 +298,7 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
     scene_ysize=10.#arcsec
     # Scene sampling
     dx,dy=0.002,0.002# arcsec/pixel
+    as_per_ster=4.25452e10 # Square arcsec per steradian
     scene_nx=int(scene_xsize/dx)
     scene_ny=int(scene_ysize/dy)
     scene=np.zeros([scene_ny,scene_nx])
@@ -306,8 +309,8 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
     # Put a point source in the middle
     xcen=int(scene_nx/2)
     ycen=int(scene_ny/2)
-   # psftot=1.0
-    scene[xcen,ycen]=psftot
+    # Insert point source, convert from mJy to MJy
+    scene[xcen,ycen]=psftot*1e-9
     # Convolve with gaussian PSF
     scene=ndimage.gaussian_filter(scene,fwhm_input/dx/2.35)
     # Set up header WCS for the scene
@@ -443,7 +446,7 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
                 for jj in range(0,njj):
                     area=np.sum(thisoneimg[:,thisxleft[jj]:thisxright[jj]])*dx*dy
                     value=np.sum(thisscene[:,thisxleft[jj]:thisxright[jj]])
-                    thisexp[thisbasey[jj],thisbasex[jj]] += value/area
+                    thisexp[thisbasey[jj],thisbasex[jj]] += value/area*as_per_ster
                     thisarea[thisbasey[jj],thisbasex[jj]]=area
         
     return allexp,allarea
