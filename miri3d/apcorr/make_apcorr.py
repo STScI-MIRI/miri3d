@@ -15,7 +15,7 @@ import os as os
 import numpy as np
 import pdb
 from matplotlib import pyplot as plt
-import miri3d.miri3d.cubepar.make_cubepar as mc
+import miri3d.cubepar.make_cubepar as mc
 
 #############################
 

@@ -10,7 +10,7 @@ REVISION HISTORY:
 
 from jwst import datamodels
 from jwst.assign_wcs import miri
-from miricoord.miricoord.mrs import mrs_pipetools as mpt
+from miricoord.mrs import mrs_pipetools as mpt
 import numpy as np
 import pdb
 

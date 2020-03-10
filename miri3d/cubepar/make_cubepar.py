@@ -19,7 +19,7 @@ from astropy.time import Time
 import datetime
 import os as os
 import numpy as np
-import miricoord.miricoord.mrs.mrs_tools as mt
+import miricoord.mrs.mrs_tools as mt
 import pdb
 
 #############################

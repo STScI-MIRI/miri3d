@@ -24,8 +24,8 @@ import math
 import numpy as np
 from astropy.io import fits
 from numpy.testing import assert_allclose
-import miricoord.miricoord.mrs.mrs_tools as mt
-import miricoord.miricoord.tel.tel_tools as tt
+import miricoord.mrs.mrs_tools as mt
+import miricoord.tel.tel_tools as tt
 
 import pdb
 
