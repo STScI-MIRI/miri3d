@@ -86,10 +86,12 @@ def main(detband,dithers,psftot,extval,betascan=False):
         dxidl=np.array([-0.07425094, -0.06187578, -0.04950062, -0.03712547, -0.02475031, -0.01237516, -0.        ,  0.01237516,  0.02475031,  0.03712547, 0.04950062,  0.06187578,  0.07425094, -0.17281015, -0.16045445, -0.14809875, -0.13574305, -0.12338735, -0.11103165, -0.09867595, -0.08632025, -0.07396455, -0.06160885, -0.04925315, -0.03689745, -0.02454175])
         dyidl=np.array([0.52758708,  0.4396559 ,  0.35172472,  0.26379354,  0.17586236, 0.08793118,  0.        , -0.08793118, -0.17586236, -0.26379354, -0.35172472, -0.4396559 , -0.52758708,  0.51316277,  0.42519493, 0.33722708,  0.24925924,  0.16129139,  0.07332355, -0.0146443 , -0.10261214, -0.19057999, -0.27854783, -0.36651568, -0.45448352, -0.54245137])
     # Otherwise, use the normal dither pattern
+    # Updated to CDP-8b distortion solution and PRDOPSSOC-M-026, add extended pattern
     else:
-        dxidl=np.array([0.,1.13872,-1.02753,1.02942,-1.13622])
-        dyidl=np.array([0.,-0.363763,0.294924,-0.291355,0.368474])
-    
+        dxidl=np.array([0.,1.094458,-1.012049,0.988069,-1.117844,0.102213,-0.127945,0.008080,-0.034015])
+        dyidl=np.array([0.,-0.385616,0.296642,-0.311605,0.371771,-0.485776,0.467512,-0.499923,0.481275])
+
+        
     # Select desired combination of dither positions
     # Warning, this will fail if we have bad input!
     dxidl=dxidl[dithers]
@@ -311,6 +313,9 @@ def setvalues(allexp,allarea,band,roi,raobj,decobj,raref,decref,rollref,dxidl,dy
     ycen=int(scene_ny/2)
     # Insert point source, convert from mJy to MJy
     scene[xcen,ycen]=psftot*1e-9
+    # HACK; additional sources
+    #scene[xcen+np.fix(0.8/dx).astype(int),ycen+np.fix(0.8/dy).astype(int)]=psftot*1e-9
+    #scene[xcen+np.fix(0.8/dx).astype(int),ycen-np.fix(1.2/dy).astype(int)]=psftot*1e-9
     # Convolve with gaussian PSF
     scene=ndimage.gaussian_filter(scene,fwhm_input/dx/2.35)
     # Set up header WCS for the scene
