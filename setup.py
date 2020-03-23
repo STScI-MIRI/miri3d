@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
    name='miri3d',
@@ -6,6 +6,6 @@ setup(
    description='MIRI 3d cube tools',
    author='David R. Law',
    author_email='dlaw@stsci.edu',
-   packages=['miri3d'],
+   packages=find_packages(),
    install_requires=['miricoord'],
 )

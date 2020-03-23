@@ -1,4 +1,15 @@
+# Mac OS stuff
 .DS_Store
+
+# Jupyter stuff
+.ipynb_checkpoints
+
+# python stuff
 __init__.pyc
-__pycache__/
-miri3d/.ipynb_checkpoints/driztest-checkpoint.ipynb
+__pycache__
+
+# Distribution
+build
+dist
+*.egg-info
+*.egg
