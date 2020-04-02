@@ -132,17 +132,26 @@ def make_ext1(cdp_dir):
     #plt.plot(inwave,inap,'.')
     #plt.plot(waves,fitap)
 
-    col1 = fits.Column(name='WAVELENGTH', format='E', array=waves, unit='micron')
-    col2 = fits.Column(name='NELEM_WL', format='I', array=nwave)
-    col3 = fits.Column(name='RADIUS', format='E', array=radius, unit='arcsec')
-    col4 = fits.Column(name='APCORR', format='E', array=apcor)
-    col5 = fits.Column(name='APCORR_ERR', format='E', array=aperr)
-    col6 = fits.Column(name='INNER_BKG', format='E', array=inbkg, unit='arcsec')
-    col7 = fits.Column(name='OUTER_BKG', format='E', array=outbkg, unit='arcsec')
-    col8 = fits.Column(name='AXIS_RATIO', format='E', array=axratio)
-    col9 = fits.Column(name='AXIS_PA', format='E', array=axangle, unit='degrees')
-
-    hdu = fits.BinTableHDU.from_columns([col1, col2, col3, col4, col5, col6, col7, col8, col9])
-    hdu.header['EXTNAME']='APCORR'
+    col1=fits.Column(name='WAVELENGTH', format=str(nwave)+'E', unit='micron')
+    col2=fits.Column(name='NELEM_WL', format='I')
+    col3=fits.Column(name='RADIUS', format=str(nwave)+'E', unit='arcsec')
+    col4 = fits.Column(name='APCORR', format=str(nwave)+'E')
+    col5 = fits.Column(name='APCORR_ERR', format=str(nwave)+'E')
+    col6 = fits.Column(name='INNER_BKG', format=str(nwave)+'E', unit='arcsec')
+    col7 = fits.Column(name='OUTER_BKG', format=str(nwave)+'E', unit='arcsec')
+    col8 = fits.Column(name='AXIS_RATIO', format=str(nwave)+'E')
+    col9 = fits.Column(name='AXIS_PA', format=str(nwave)+'E', unit='degrees')
+    
+    hdu = fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5,col6,col7,col8,col9], nrows=1, name="APCORR")
+          
+    hdu.data.field("wavelength")[:] = waves
+    hdu.data.field("nelem_wl")[:] = nwave
+    hdu.data.field("radius")[:] = radius
+    hdu.data.field("apcorr")[:] = apcor
+    hdu.data.field("apcorr_err")[:] = aperr
+    hdu.data.field("inner_bkg")[:] = inbkg
+    hdu.data.field("outer_bkg")[:] = outbkg
+    hdu.data.field("axis_ratio")[:] = axratio
+    hdu.data.field("axis_pa")[:] = axangle
     
     return hdu
