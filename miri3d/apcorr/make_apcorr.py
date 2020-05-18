@@ -29,6 +29,8 @@ def make_apcorrpar():
     mjd=int(now.mjd)
     filename='miri-apcorrpar-'+str(mjd)+'.fits'
     outfile=os.path.join(outdir,filename)
+    plotname = 'miri-apcorrpar-'+str(mjd)+'.png'
+    outplot = os.path.join(outdir,plotname)
     thisfile=__file__
     _,thisfile=os.path.split(thisfile)
 
@@ -41,7 +43,7 @@ def make_apcorrpar():
 
     # Create first extension (APCORR)
     print('Making 1st extension')
-    hdu1=make_ext1(cdp_dir)
+    hdu1=make_ext1(cdp_dir,outplot)
 
     hdul=fits.HDUList([hdu0,hdu1])
     hdul.writeto(outfile,overwrite=True)
@@ -77,7 +79,7 @@ def make_ext0(now,thisfile):
     
 #############################
 
-def make_ext1(cdp_dir):
+def make_ext1(cdp_dir,outplot):
     print('Figuring out wavelength ranges')
     wmin1A,_=mc.waveminmax('1A')
     _,wmax4C=mc.waveminmax('4C')
@@ -126,15 +128,20 @@ def make_ext1(cdp_dir):
     radius=poly(waves)
     
     # At present the CDP aperture-correction factors have unphysical features
-    # set it equal to the median value
-    apcor[:]=np.median(incor)
-
-    #plt.plot(inwave,inap,'.')
-    #plt.plot(waves,fitap)
-
-    col1=fits.Column(name='WAVELENGTH', format=str(nwave)+'E', unit='micron')
-    col2=fits.Column(name='NELEM_WL', format='I')
-    col3=fits.Column(name='RADIUS', format=str(nwave)+'E', unit='arcsec')
+    # Therefore do a simple linear fit to the values with wavelength
+    thefit=np.polyfit(np.array(inwave).ravel(),np.array(incor).ravel(),1)
+    poly=np.poly1d(thefit)
+    apcor=poly(waves)
+    
+    plt.plot(inwave,incor,'.')
+    plt.plot(waves,apcor)
+    plt.xlabel('Wavelength (micron)')
+    plt.ylabel('Correction factor')
+    plt.savefig(outplot)
+    
+    col1 = fits.Column(name='WAVELENGTH', format=str(nwave)+'E', unit='micron')
+    col2 = fits.Column(name='NELEM_WL', format='I')
+    col3 = fits.Column(name='RADIUS', format=str(nwave)+'E', unit='arcsec')
     col4 = fits.Column(name='APCORR', format=str(nwave)+'E')
     col5 = fits.Column(name='APCORR_ERR', format=str(nwave)+'E')
     col6 = fits.Column(name='INNER_BKG', format=str(nwave)+'E', unit='arcsec')
@@ -143,7 +150,10 @@ def make_ext1(cdp_dir):
     col9 = fits.Column(name='AXIS_PA', format=str(nwave)+'E', unit='degrees')
     
     hdu = fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5,col6,col7,col8,col9], nrows=1, name="APCORR")
-          
+
+    hdu.header['WAVEUNIT'] = 'micron'
+    hdu.header['SIZEUNIT'] = 'arcsec'
+    
     hdu.data.field("wavelength")[:] = waves
     hdu.data.field("nelem_wl")[:] = nwave
     hdu.data.field("radius")[:] = radius
