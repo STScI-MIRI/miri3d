@@ -71,6 +71,7 @@ def make_ext0(now,thisfile):
     hdu.header['VERSION']=int(now.mjd)
     hdu.header['AUTHOR']='D. Law'
     hdu.header['ORIGIN']='STSCI'
+    hdu.header['DATAMODL']='MirMrsApcorrModel'
     hdu.header['HISTORY']='IFU Cube defaults'
     hdu.header['HISTORY']='DOCUMENT: TBD'
     hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/apcorr/make_apcorr.py'
