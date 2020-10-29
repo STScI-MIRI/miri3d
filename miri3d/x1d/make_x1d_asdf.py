@@ -56,7 +56,7 @@ def make_x1dpar():
     meta=make_x1d_values(meta)
 
     # Populate vectors of radii
-    meta,data=make_x1d_data(cdp_dir,outplot,meta)
+    data=make_x1d_data(cdp_dir,outplot)
 
     # Construct file
     tree={
@@ -90,10 +90,7 @@ def make_x1d_meta(now,thisfile):
     meta['history']+=' DATA USED: CDP-7'
         
     meta['instrument']={
-        'name': 'MIRI',
-        'channel': 'N/A',
-        'band': 'N/A',
-        'detector': 'N/A'
+        'name': 'MIRI'
         }
 
     return meta
@@ -110,7 +107,7 @@ def make_x1d_values(meta):
 
 #############################
 
-def make_x1d_data(cdp_dir,outplot,meta):
+def make_x1d_data(cdp_dir,outplot):
     print('Figuring out wavelength ranges')
     wmin1A,_=mc.waveminmax('1A')
     _,wmax4C=mc.waveminmax('4C')
@@ -169,20 +166,19 @@ def make_x1d_data(cdp_dir,outplot,meta):
 
     data={
         'wavelength': waves,
+        'wavelength_units':'micron',
         'radius': radius,
+        'radius_units':'arcsec',
         'inner_bkg': inbkg,
+        'inner_bkg_units':'arcsec',
         'outer_bkg': outbkg,
+        'outer_bkg_units':'arcsec',
         'axis_ratio': axratio,
         'axis_pa': axangle,
+        'axis_pa_units':'degrees',
         }
-
-    meta['wavelength_units']='micron'
-    meta['radius_units']='arcsec'
-    meta['inner_bkg_units']='arcsec'
-    meta['outer_bkg_units']='arcsec'
-    meta['axis_pa_units']='degrees'
         
-    return meta,data
+    return data
 
 
 
