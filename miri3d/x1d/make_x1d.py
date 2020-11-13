@@ -54,20 +54,8 @@ def make_x1dpar():
     cdp_dir=os.path.expandvars('$MIRIBOX')
     cdp_dir=os.path.join(cdp_dir,'CDP/CDP-7/MRS_APERCORR/')
 
-    # If there were not already a datamodel we'd have to construct
-    # the dictionary by hand.  We will save that routine for future
-    # reference, although it can't be read in in quite the same
-    # way (datamodels.open works, but results can't be called the same)
+    # Make the reference file dictionary
     ff=make_x1d_fromdict(now,cdp_dir,outplot)
-
-    # Read datamodel from file
-    #model=datamodels.IFUExtract1dModel()
-    # Populate basic metadata
-    #model=make_x1d_meta(model,now)
-    # Populate vectors of data
-    #model=make_x1d_data(model,cdp_dir,outplot)
-    # Put the model into an asdf structure
-    #ff = asdf.AsdfFile(model)
 
     # Add history info
     ff.add_history_entry('1D Extraction defaults')
@@ -76,108 +64,13 @@ def make_x1dpar():
     ff.add_history_entry('DATA USED: CDP-7')
     
     # Write out the file
-    ff.write_to(outfile)#,all_array_storage='inline')
+    ff.write_to(outfile,all_array_storage='inline')
     print('Wrote file ',outfile)
 
-    # Read the file
-    #model2=datamodels.IFUExtract1dModel(outfile)
-    #pdb.set_trace()
-    
-#############################
-
-def make_x1d_meta(model,now):
-    model.meta.telescope = 'JWST'
-    model.meta.pedigree = 'GROUND'
-    model.meta.description = 'Default MIRI MRS Extract1d parameters'
-    model.meta.date = now.value
-    model.meta.reftype = 'EXTRACT1D'
-    model.meta.exp_type = 'MIR_MRS'
-    model.meta.useafter = '2000-01-01T00:00:00'
-    model.meta.version = int(now.mjd)
-    model.meta.author = 'D. Law'
-    model.meta.origin = 'STSCI'
-    model.meta.instrument.name = 'MIRI'
-
-    model.meta.region_type = 'target'
-    model.meta.subtract_background = True
-    model.meta.method = 'subpixel'
-    model.meta.subpixels = 10
-
-    return model
-
-#############################
-
-def make_x1d_data(model,cdp_dir,outplot):
-    print('Figuring out wavelength ranges')
-    wmin1A,_=mc.waveminmax('1A')
-    _,wmax4C=mc.waveminmax('4C')
-
-    print('Building tables')
-
-    # Set up placeholder vectors
-    waves=np.arange(wmin1A,wmax4C,0.01,dtype='float32')
-    nwave=len(waves)
-    radius=np.ones(nwave,dtype='float32')
-    inbkg=np.zeros(nwave,dtype='float32')
-    outbkg=np.zeros(nwave,dtype='float32')
-    axratio=np.ones(nwave,dtype='float32')
-    axangle=np.zeros(nwave,dtype='float32')
-
-    # Populate real values
-    # Read in the CDP files
-    files=['MIRI_FM_MIRIFUSHORT_1SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_1MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_1LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4LONG_APERCORR_07.00.00.fits']
-    inwave=[]
-    inap=[]
-    for file in files:
-        fullfile = os.path.join(cdp_dir, file)
-        hdu=fits.open(fullfile)
-        data=hdu[1].data
-        inwave.append(data['wavelength'])
-        inap.append(data['a_aperture'])
-
-    # Compile into big vectors
-    # Simple polynomial fit to the aperture
-    thefit=np.polyfit(np.array(inwave).ravel(),np.array(inap).ravel(),1)
-    poly=np.poly1d(thefit)
-    radius=poly(waves)
-
-    # Background annulus
-    # For now, set inner radius to twice the extraction radius
-    inbkg=radius*2
-    # And the outer radius to 2.5 times the extraction radius
-    outbkg=radius*2.5
-    
-    plt.plot(inwave,inap,'.')
-    plt.plot(waves,radius)
-    plt.xlabel('Wavelength (micron)')
-    plt.ylabel('Extraction Radius (arcsec)')
-    plt.savefig(outplot)
-
-    model.data.wavelength = waves
-    model.data.wavelength_units = 'micron'
-    model.data.radius = radius
-    model.data.radius_units = 'arcsec'
-    model.data.inner_bkg = inbkg
-    model.data.inner_bkg_units = 'arcsec'
-    model.data.outer_bkg = outbkg
-    model.data.outer_bkg_units = 'arcsec'
-    model.data.axis_ratio = axratio
-    model.data.axis_pa = axangle
-    model.data.axis_pa_units = 'degrees'
-    
-    return model
-
+    # now validate this with the schema. If it does not validate an error is returned
+    # working on how to return true or something that says "YES IT WORKDED"
+    af = asdf.open(outfile, custom_schema="http://stsci.edu/schemas/jwst_datamodel/ifuextract1d.schema")
+    af.validate()
     
 #############################
 
@@ -253,16 +146,17 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
     radius=poly(waves)
 
     # Background annulus
-    # For now, set inner radius to twice the extraction radius
-    inbkg=radius*2
-    # And the outer radius to 2.5 times the extraction radius
-    outbkg=radius*2.5
+    # For now, set inner radius to 3x the extraction radius
+    inbkg=radius*3
+    # And the outer radius to 3.5 times the extraction radius
+    outbkg=radius*3.5
     
     plt.plot(inwave,inap,'.')
     plt.plot(waves,radius)
     plt.xlabel('Wavelength (micron)')
     plt.ylabel('Extraction Radius (arcsec)')
     plt.savefig(outplot)
+    plt.close()
 
     data={
         'wavelength': waves,
@@ -308,20 +202,8 @@ def make_apcorrpar():
     cdp_dir=os.path.expandvars('$MIRIBOX')
     cdp_dir=os.path.join(cdp_dir,'CDP/CDP-7/MRS_APERCORR/')
 
-    # If there were not already a datamodel we'd have to construct
-    # the dictionary by hand.  We will save that routine for future
-    # reference, although it can't be read in in quite the same
-    # way (datamodels.open works, but results can't be called the same)
+    # Make the reference file dictionary
     ff=make_apcorr_fromdict(now,cdp_dir,outplot)
-    
-    # Read datamodel from file (not actually the right one, but close enough?)
-    #model=datamodels.IFUExtract1dModel()
-    # Populate basic metadata
-    #model=make_apcorr_meta(model,now)
-    # Populate vectors of data
-    #model=make_apcorr_data(model,cdp_dir,outplot)
-    # Put the model into an asdf structure
-    #ff = asdf.AsdfFile(model)
     
     # Add history info
     ff.add_history_entry('1D Extraction defaults')
@@ -331,110 +213,11 @@ def make_apcorrpar():
     
     # Write out the file
     ff.write_to(outfile,all_array_storage='inline')
-    
-#############################
 
-def make_apcorr_meta(model,now):
-    model.meta.telescope = 'JWST'
-    model.meta.pedigree = 'GROUND'
-    model.meta.description = 'Default MIRI MRS Aperture correction parameters'
-    model.meta.date = now.value
-    model.meta.reftype = 'APCORR'
-    model.meta.exp_type = 'MIR_MRS'
-    model.meta.useafter = '2000-01-01T00:00:00'
-    model.meta.version = int(now.mjd)
-    model.meta.author = 'D. Law'
-    model.meta.origin = 'STSCI'
-    model.meta.instrument.name = 'MIRI'
-    model.meta.model_type = 'MirMrsApcorrModel'
-
-    return model
-
-
-#############################
-
-def make_apcorr_data(model,cdp_dir,outplot):
-    print('Figuring out wavelength ranges')
-    wmin1A,_=mc.waveminmax('1A')
-    _,wmax4C=mc.waveminmax('4C')
-
-    print('Building tables')
-
-    # Set channel and band info
-    chan = np.array(['ANY'])
-    band = np.array(['ANY'])
-
-    # Set the output wavelength sampling for the reference file
-    waves = np.arange(wmin1A, wmax4C, 0.01,dtype='float32')
-    nwave = len(waves)
-
-    # We'll set up 3 radius options for now at each wavelength
-    # that can later be used to interpolate to different radius choices
-    nrad = 3
-    # Define placeholder arrays for radius, apcor, and aperr
-    radius = np.zeros([nrad, nwave],dtype='float32')
-    apcor = np.zeros([nrad, nwave],dtype='float32')
-    aperr = np.zeros([nrad, nwave],dtype='float32') # Placeholder, all zeros currently
-
-    # Populate real values
-    # Read in the CDP files
-    files=['MIRI_FM_MIRIFUSHORT_1SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_1MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_1LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFUSHORT_2LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_3LONG_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4SHORT_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4MEDIUM_APERCORR_07.00.00.fits',
-           'MIRI_FM_MIRIFULONG_4LONG_APERCORR_07.00.00.fits']
-    inwave=[]
-    inap=[]
-    incor=[]
-    for file in files:
-        hdu=fits.open(os.path.join(cdp_dir,file))
-        data=hdu[1].data
-        inwave.append(data['wavelength'])
-        inap.append(data['a_aperture'])
-        incor.append(data['aper_corr'])
-
-    # Compile into big vectors
-    # Simple polynomial fit to the aperture
-    thefit = np.polyfit(np.array(inwave).ravel(), np.array(inap).ravel(), 1)
-    poly = np.poly1d(thefit)
-    # Radius is the evaluation of this polynomial fit at the output wavelengths
-    # For now the low/high radius options are notional
-    radius[0, :] = poly(waves)/2
-    radius[1, :] = poly(waves)
-    radius[2, :] = poly(waves)*2
-
-    # At present the CDP aperture-correction factors have unphysical features
-    # Therefore do a simple linear fit to the values with wavelength
-    thefit=np.polyfit(np.array(inwave).ravel(),np.array(incor).ravel(),1)
-    poly=np.poly1d(thefit)
-    # Evaluate polynomial fit to get aperture corrections
-    # For now all radius options are the same
-    apcor[0, :] = poly(waves)/2.# TEMPORARY!!!!
-    apcor[1, :] = poly(waves)
-    apcor[2, :] = poly(waves)*2.# TEMPORARY!!!!
-
-    plt.plot(inwave,incor,'.')
-    plt.plot(waves[:],apcor[1,:])
-    plt.xlabel('Wavelength (micron)')
-    plt.ylabel('Correction factor')
-    plt.savefig(outplot)
-
-    model.data.wavelength = waves
-    model.data.wavelength_units = 'micron'
-    model.data.radius = radius
-    model.data.radius_units = 'arcsec'
-    model.data.apcorr = apcor
-    model.data.apcorr_err = aperr
-    
-    return model
-
+    # now validate this with the schema. If it does not validate an error is returned
+    # working on how to return true or something that says "YES IT WORKDED"
+    af = asdf.open(outfile, custom_schema="http://stsci.edu/schemas/jwst_datamodel/mirmrs_apcorr.schema")
+    af.validate()
 
 #############################
 
@@ -520,17 +303,18 @@ def make_apcorr_fromdict(now,cdp_dir,outplot):
     thefit=np.polyfit(np.array(inwave).ravel(),np.array(incor).ravel(),1)
     poly=np.poly1d(thefit)
     # Evaluate polynomial fit to get aperture corrections
-    # For now all radius options are the same
-    apcor[0, :] = poly(waves)/2.# TEMPORARY!!!!
+    # For now all radius aperture corrections are the same
+    apcor[0, :] = poly(waves)
     apcor[1, :] = poly(waves)
-    apcor[2, :] = poly(waves)*2.# TEMPORARY!!!!
+    apcor[2, :] = poly(waves)
 
     plt.plot(inwave,incor,'.')
     plt.plot(waves[:],apcor[1,:])
     plt.xlabel('Wavelength (micron)')
     plt.ylabel('Correction factor')
     plt.savefig(outplot)
-
+    plt.close()
+    #pdb.set_trace()
     data={
         'wavelength': waves,
         'wavelength_units':'micron',
@@ -542,7 +326,7 @@ def make_apcorr_fromdict(now,cdp_dir,outplot):
 
     tree={
         'meta':meta,
-        'data':data
+        'apcorr_table':data
         }
     
     ff=asdf.AsdfFile(tree)
