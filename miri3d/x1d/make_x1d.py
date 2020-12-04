@@ -10,6 +10,7 @@ REVISION HISTORY:
 12-Feb-2020  First written (D. Law)
 27-Sep-2020  Add in extract1d file as well (D. Law)
 29-Oct-2020  Convert to asdf output (D. Law)
+04-Dec-2020  Change schema names (D. Law)
 """
 
 import asdf
@@ -23,7 +24,7 @@ import pdb
 from matplotlib import pyplot as plt
 import miri3d.cubepar.make_cubepar as mc
 from jwst import datamodels
-from jwst.datamodels import IFUExtract1dModel
+from jwst.datamodels import Extract1dIFUModel
 from jwst.datamodels import MirMrsApcorrModel
 from jwst.datamodels import util
     
@@ -69,7 +70,7 @@ def make_x1dpar():
 
     # now validate this with the schema. If it does not validate an error is returned
     # working on how to return true or something that says "YES IT WORKDED"
-    af = asdf.open(outfile, custom_schema="http://stsci.edu/schemas/jwst_datamodel/ifuextract1d.schema")
+    af = asdf.open(outfile, custom_schema="http://stsci.edu/schemas/jwst_datamodel/extract1difu.schema")
     af.validate()
     
 #############################
@@ -88,7 +89,7 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
     meta['version']=int(now.mjd)
     meta['author']='D. Law'
     meta['origin']='STSCI'
-    meta['datamodl']='MirMrsExtract1dModel'
+    meta['datamodl']='Extract1dIFUModel'
     meta['history']='1D Extraction defaults'
     meta['history']+=' DOCUMENT: TBD'
     meta['history']+=' SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/x1d/make_x1d.py'
