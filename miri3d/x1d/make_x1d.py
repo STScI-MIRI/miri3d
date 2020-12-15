@@ -84,12 +84,14 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
     meta['description']='Default MIRI MRS Extract1d parameters'
     meta['date']=now.value
     meta['reftype']='EXTRACT1D'
-    meta['exp_type']='MIR_MRS'
+    meta['exposure']={
+        'type': 'MIR_MRS'
+        }
     meta['useafter']='2000-01-01T00:00:00'
     meta['version']=int(now.mjd)
     meta['author']='D. Law'
     meta['origin']='STSCI'
-    meta['datamodl']='Extract1dIFUModel'
+    meta['model_type']='Extract1dIFUModel'
     meta['history']='1D Extraction defaults'
     meta['history']+=' DOCUMENT: TBD'
     meta['history']+=' SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/x1d/make_x1d.py'
@@ -229,12 +231,14 @@ def make_apcorr_fromdict(now,cdp_dir,outplot):
     meta['description']='Default MIRI MRS Aperture correction parameters'
     meta['date']=now.value
     meta['reftype']='APCORR'
-    meta['exp_type']='MIR_MRS'
+    meta['exposure']={
+        'type': 'MIR_MRS'
+        }
     meta['useafter']='2000-01-01T00:00:00'
     meta['version']=int(now.mjd)
     meta['author']='D. Law'
     meta['origin']='STSCI'
-    meta['datamodl']='MirMrsApcorrModel'
+    meta['model_type']='MirMrsApcorrModel'
     meta['history']='1D Extraction defaults'
     meta['history']+=' DOCUMENT: TBD'
     meta['history']+=' SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/x1d/make_x1d.py'
