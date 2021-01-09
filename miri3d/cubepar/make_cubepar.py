@@ -4,13 +4,14 @@ Python tools for creating the MIRI MRS cubepar parameter files.
 These define the values of things like spaxel size, wavelength solution,
 and weight function parameters for the JWST pipeline cube building algorithm.
 
-Author: Beth Sargent (sargent@stsci.edu) and David R. Law (dlaw@stsci.edu)
+Author: David R. Law (dlaw@stsci.edu)
 
 REVISION HISTORY:
 Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 18-Jul-2019  Convert to python (D. Law)
 19-Jul-2019  Add exponential weight extensions (D. Law)
 12-Dec-2019  Modify weights based on pipeline testing (D. Law)
+08-Jan-2021  Tweak cube wavelength ranges to account for isolambda curvature (D. Law)
 
 """
 
@@ -87,16 +88,29 @@ def waveminmax(channel):
 
     thislmin=np.zeros(nslice)
     thislmax=np.zeros(nslice)
-    # Max and min wavelength in each slice
+
+    # Look at top and bottom rows of the detector
+    wimg_row1 = wimg[0,:]
+    wimg_row2 = wimg[-1,:]
+    slice_row1 = slicemap[0,:]
+    slice_row2 = slicemap[-1,:]
+
+    # Detectors have different orientations.  Ensure that row1 is shorter wavelength than row2
+    if (np.max(wimg_row1) > np.max(wimg_row2)):
+        wimg_row1, wimg_row2 = wimg_row2, wimg_row1
+        slice_row1, slice_row2 = slice_row2, slice_row1
+
+    # Max and min wavelength in each slice accounting for the curvature of isolambda
     for jj in range(0,nslice):
-        indx=np.where(slicemap == slicenum[jj])
-        thislmin[jj]=np.min(wimg[indx])
-        thislmax[jj]=np.max(wimg[indx])
+        indx=np.where(slice_row1 == slicenum[jj])
+        thislmin[jj]=np.max(wimg_row1[indx])
+        indx = np.where(slice_row2 == slicenum[jj])
+        thislmax[jj]=np.min(wimg_row2[indx])
 
     # Ensure overall min/max wavelengths are covered for all slices
     lmin=np.max(thislmin)
     lmax=np.min(thislmax)
-    
+
     return lmin,lmax
 
 #############################
@@ -157,7 +171,7 @@ def make_ext0(now,thisfile):
     hdu.header['FILENAME']=thisfile
     hdu.header['USEAFTER']='2000-01-01T00:00:00'
     hdu.header['VERSION']=int(now.mjd)
-    hdu.header['AUTHOR']='D. Law and B. Sargent'
+    hdu.header['AUTHOR']='D. Law'
     hdu.header['ORIGIN']='STSCI'
     hdu.header['HISTORY']='IFU Cube defaults'
     hdu.header['HISTORY']='DOCUMENT: TBD'
@@ -166,6 +180,7 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='DIFFERENCES: Migrated to python creation code.'
     hdu.header['HISTORY']='DIFFERENCES: Add support for e^(-r) weight function.'
     hdu.header['HISTORY']='Set parameters for 12 bands based on simulations.'
+    hdu.header['HISTORY']='Tweak wavelength ranges to account for isolambda tilt within slices.'
 
     return hdu
 
