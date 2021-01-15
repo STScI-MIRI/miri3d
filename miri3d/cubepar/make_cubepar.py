@@ -160,6 +160,7 @@ def make_ext0(now,thisfile):
     hdu.header['REFTYPE']='CUBEPAR'
     hdu.header['DESCRIP']='Default IFU Cube Sampling and weight parameters'
     hdu.header['PEDIGREE']='GROUND'
+    hdu.header['DATAMODL']='MiriIFUCubeParsModel'
     hdu.header['TELESCOP']='JWST'
     hdu.header['INSTRUME']='MIRI'
     hdu.header['MODELNAM']='FM'
