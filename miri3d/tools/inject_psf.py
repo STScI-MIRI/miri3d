@@ -175,8 +175,6 @@ def main(detband,dithers,psftot,extval,betascan=False):
 # very small
 
 def get_template(detband):
-    rootdir=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
     if (detband == '12A'):
         file='template_12A.fits.gz'
     elif (detband == '12B'):
@@ -189,10 +187,22 @@ def get_template(detband):
         file='template_34B.fits.gz'
     elif (detband == '34C'):
         file='template_34C.fits.gz'
-        
+
+    # Try looking for the file in the expected location
+    rootdir=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     rootdir=os.path.join(rootdir,'data/lvl2btemplate/')
     reffile=os.path.join(rootdir,file)
-   
+    if os.path.exists(reffile):
+        return reffile
+    
+    # If that didn't work, look in the system path
+    rootdir=sys.prefix
+    rootdir=os.path.join(rootdir,'data/lvl2btemplate/')
+    reffile=os.path.join(rootdir,file)
+    if os.path.exists(reffile):
+        return reffile    
+
+    # If that didn't work either, just return what we've got
     return reffile
 
 #############################
