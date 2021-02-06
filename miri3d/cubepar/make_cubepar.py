@@ -12,6 +12,7 @@ Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 19-Jul-2019  Add exponential weight extensions (D. Law)
 12-Dec-2019  Modify weights based on pipeline testing (D. Law)
 08-Jan-2021  Tweak cube wavelength ranges to account for isolambda curvature (D. Law)
+04-Feb-2021  Add cross-dichroic information (D. Law)
 
 """
 
@@ -182,7 +183,7 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='DIFFERENCES: Add support for e^(-r) weight function.'
     hdu.header['HISTORY']='Set parameters for 12 bands based on simulations.'
     hdu.header['HISTORY']='Tweak wavelength ranges to account for isolambda tilt within slices.'
-
+    hdu.header['HISTORY']='Add cross-dichroic configurations.'
     return hdu
 
 #############################
@@ -217,13 +218,26 @@ def make_ext1():
     spaxsize=np.array([0.13,0.13,0.13,0.17,0.17,0.17,0.20,0.20,0.20,0.35,0.35,0.35])
     wsamp=np.array([0.001,0.001,0.001,0.002,0.002,0.002,0.003,0.003,0.003,0.006,0.006,0.006])
 
-    col1=fits.Column(name='CHANNEL',format='I',array=chan)
-    col2=fits.Column(name='BAND',format='10A',array=bnd)
-    col3=fits.Column(name='WAVEMIN',format='E',array=wmin, unit='micron')
-    col4=fits.Column(name='WAVEMAX',format='E',array=wmax, unit='micron')
-    col5=fits.Column(name='SPAXELSIZE',format='E',array=spaxsize, unit='arcsec')
-    col6=fits.Column(name='SPECTRALSTEP',format='D',array=wsamp, unit='micron')
-
+    # Add cross-dichroic information just using the same parameters as each indiv band used
+    # Do it in two batches as that's simplest
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
+                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    allchan=np.append(chan,np.append(chan,chan))
+    allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
+    allwmin=np.append(wmin,np.append(wmin,wmin))
+    allwmax=np.append(wmax,np.append(wmax,wmax))
+    allspaxsize=np.append(spaxsize,np.append(spaxsize,spaxsize))
+    allwsamp=np.append(wsamp,np.append(wsamp,wsamp))
+    
+    col1=fits.Column(name='CHANNEL',format='I',array=allchan)
+    col2=fits.Column(name='BAND',format='12A',array=allbnd)
+    col3=fits.Column(name='WAVEMIN',format='E',array=allwmin, unit='micron')
+    col4=fits.Column(name='WAVEMAX',format='E',array=allwmax, unit='micron')
+    col5=fits.Column(name='SPAXELSIZE',format='E',array=allspaxsize, unit='arcsec')
+    col6=fits.Column(name='SPECTRALSTEP',format='D',array=allwsamp, unit='micron')
+    
     hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5,col6])
     hdu.header['EXTNAME']='CUBEPAR'
     
@@ -241,12 +255,25 @@ def make_ext2():
     power=np.array([2,2,2,2,2,2,2,2,2,2,2,2])
     softrad=np.array([0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01])
 
-    col1=fits.Column(name='CHANNEL',format='I',array=chan)
-    col2=fits.Column(name='BAND',format='10A',array=bnd)
-    col3=fits.Column(name='ROISPATIAL',format='E',array=roispat, unit='arcsec')
-    col4=fits.Column(name='ROISPECTRAL',format='E',array=roispec, unit='micron')
-    col5=fits.Column(name='POWER',format='I',array=power)
-    col6=fits.Column(name='SOFTRAD',format='E',array=softrad, unit='arcsec')
+    # Add cross-dichroic information just using the same parameters as each indiv band used
+    # Do it in two batches as that's simplest
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
+                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    allchan=np.append(chan,np.append(chan,chan))
+    allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
+    allroispat=np.append(roispat,np.append(roispat,roispat))
+    allroispec=np.append(roispec,np.append(roispec,roispec))
+    allpower=np.append(power,np.append(power,power))
+    allsoftrad=np.append(softrad,np.append(softrad,softrad))
+    
+    col1=fits.Column(name='CHANNEL',format='I',array=allchan)
+    col2=fits.Column(name='BAND',format='12A',array=allbnd)
+    col3=fits.Column(name='ROISPATIAL',format='E',array=allroispat, unit='arcsec')
+    col4=fits.Column(name='ROISPECTRAL',format='E',array=allroispec, unit='micron')
+    col5=fits.Column(name='POWER',format='I',array=allpower)
+    col6=fits.Column(name='SOFTRAD',format='E',array=allsoftrad, unit='arcsec')
 
     hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5,col6])
     hdu.header['EXTNAME']='CUBEPAR_MSM'
@@ -336,11 +363,23 @@ def make_ext4():
     # Rough guess at ROI spectral region
     roispec=np.array([0.0025,0.0025,0.0025,0.005,0.005,0.005,0.007,0.007,0.007,0.014,0.014,0.014])
 
-    col1=fits.Column(name='CHANNEL',format='I',array=chan)
-    col2=fits.Column(name='BAND',format='10A',array=bnd)
-    col3=fits.Column(name='ROISPATIAL',format='E',array=roispat, unit='arcsec')
-    col4=fits.Column(name='ROISPECTRAL',format='E',array=roispec, unit='micron')
-    col5=fits.Column(name='SCALERAD',format='E',array=scalerad, unit='arcsec')
+    # Add cross-dichroic information just using the same parameters as each indiv band used
+    # Do it in two batches as that's simplest
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
+                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    allchan=np.append(chan,np.append(chan,chan))
+    allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
+    allroispat=np.append(roispat,np.append(roispat,roispat))
+    allroispec=np.append(roispec,np.append(roispec,roispec))
+    allscalerad=np.append(scalerad,np.append(scalerad,scalerad))
+
+    col1=fits.Column(name='CHANNEL',format='I',array=allchan)
+    col2=fits.Column(name='BAND',format='12A',array=allbnd)
+    col3=fits.Column(name='ROISPATIAL',format='E',array=allroispat, unit='arcsec')
+    col4=fits.Column(name='ROISPECTRAL',format='E',array=allroispec, unit='micron')
+    col5=fits.Column(name='SCALERAD',format='E',array=allscalerad, unit='arcsec')
 
     hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5])
     hdu.header['EXTNAME']='CUBEPAR_EMSM'
