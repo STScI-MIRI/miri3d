@@ -149,13 +149,27 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
     radius=poly(waves)
 
     # Background annulus
-    # For now, set inner radius to 3x the extraction radius
-    inbkg=radius*3
-    # And the outer radius to 3.5 times the extraction radius
-    outbkg=radius*3.5
+    # Note that Ch1 can be much more generous than Ch4; FWHM increases
+    # by a factor of 5 from Ch1 to Ch4 but FOV only by a factor of 2.
+    # We also should not apply any sudden steps in the annulus size
+    # between channels, otherwise that will manifest as a step in the required
+    # aperture correction between channels, and we're assuming that it can be
+    # smooth with wavelength so everything interpolates from the same table.
+
+    # Therefore, we'll make annuli that shrink linearly (relative to FWHM)
+    # with wavelength
+    in1,in2 = np.min(radius)*3.0, np.max(radius)*1.5
+    out1,out2 = np.min(radius)*3.5, np.max(radius)*2.0
+    inbkg=np.float32(np.interp(waves,np.array([np.min(waves),np.max(waves)]),
+                                      np.array([in1,in2])))
+    outbkg=np.float32(np.interp(waves,np.array([np.min(waves),np.max(waves)]),
+                                      np.array([out1,out2])))
     
     plt.plot(inwave,inap,'.')
     plt.plot(waves,radius)
+    plt.plot(waves,inbkg,color='red')
+    plt.plot(waves,outbkg,color='red')
+    plt.grid()
     plt.xlabel('Wavelength (micron)')
     plt.ylabel('Extraction Radius (arcsec)')
     plt.savefig(outplot)
