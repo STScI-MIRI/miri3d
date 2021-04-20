@@ -56,7 +56,7 @@ import pdb
 #
 # Input detband is (e.g.) 12A, 34B, etc.
 
-def main(detband,dithers,psftot,extval,scan=False):
+def main(detband,dithers,psftot,extval,scan=False,writearea=False):
     # Set the distortion solution to use
     mt.set_toolversion('cdp8b')
     
@@ -117,11 +117,11 @@ def main(detband,dithers,psftot,extval,scan=False):
         sw=mt.slicewidth(detband)
         # Number of slices
         nslice=((maxbeta-minbeta)/sw).astype(int)
-        # PSF FWHM for spacing
-        fwhm=rough_fwhm(detband)
-        # First six points are the corners and sides
-        alpha1=np.array([minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm])
-        beta1=np.array([maxbeta-fwhm,maxbeta-fwhm,0,0,minbeta+fwhm,minbeta+fwhm])
+        # PSF FWHM for spacing from detector edges for sim points
+        fwhm=2*rough_fwhm(detband)
+        # First seven points are the center, corners, and sides
+        alpha1=np.array([0,minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm])
+        beta1=np.array([0,maxbeta-fwhm,maxbeta-fwhm,0,0,minbeta+fwhm,minbeta+fwhm])
         # Next set of points is a scan up alpha=0 for every slice
         alpha2=np.zeros(nslice)
         beta2=np.arange(nslice)*sw+minbeta+sw/2.
@@ -141,7 +141,7 @@ def main(detband,dithers,psftot,extval,scan=False):
 
         # Print the points to a file for reference
         pointfile='simpoints'+detband+'.txt'
-        print('# alpha beta',file=open(pointfile,"a"))
+        print('# alpha beta',file=open(pointfile,"w"))
         for ii in range(0,nexp):
             print(alpha[ii],beta[ii],file=open(pointfile,"a"))
         
@@ -151,6 +151,8 @@ def main(detband,dithers,psftot,extval,scan=False):
 
     #########################################################
 
+    print('Ndither = ',nexp)
+    
     # MRS reference location is DEFINED for 1A regardless of band in use
     v2ref,v3ref=mt.abtov2v3(0.,0.,'1A')
     
@@ -202,8 +204,12 @@ def main(detband,dithers,psftot,extval,scan=False):
     for ii in range(0,nexp):
         thisexp=allexp[ii,:,:]
         thisarea=allarea[ii,:,:]
-        newfile='mock'+detband+'-'+str(ii)+'.fits'
-        newareafile='mockarea'+detband+'-'+str(ii)+'.fits'
+        # Ensure two-digit sim format code
+        strii=str(ii)
+        if (ii <= 9):
+            strii='0'+str(ii)
+        newfile='mock'+detband+'-'+strii+'.fits'
+        newareafile='mockarea'+detband+'-'+strii+'.fits'
         hdu=fits.open(basefile)
         # Hack header WCS
         primheader=hdu[0].header
@@ -217,11 +223,12 @@ def main(detband,dithers,psftot,extval,scan=False):
         header['ROLL_REF']=rollref[ii]
         hdu['SCI'].header=header
         hdu['SCI'].data=thisexp
-        hdu.writeto(newfile,overwrite=True)
-        hdu['SCI'].data=thisarea
         # Overwrite any old DQ problems
         hdu['DQ'].data[:]=0
-        hdu.writeto(newareafile,overwrite=True)
+        hdu.writeto(newfile,overwrite=True)
+        if (writearea == True):
+            hdu['SCI'].data=thisarea
+            hdu.writeto(newareafile,overwrite=True)
 
     print('Done!')
 
@@ -275,17 +282,17 @@ def plot_qascan(values,channel,v2,v3,**kwargs):
 # very small
 
 def get_template(detband):
-    if (detband == '12A'):
+    if ((detband == '1A')or(detband == '2A')or(detband == '12A')):
         file='template_12A.fits.gz'
-    elif (detband == '12B'):
+    elif ((detband == '1B')or(detband == '2B')or(detband == '12B')):
         file='template_12B.fits.gz'
-    elif (detband == '12C'):
+    elif ((detband == '1C')or(detband == '2C')or(detband == '12C')):
         file='template_12C.fits.gz'
-    elif (detband == '34A'):
+    elif ((detband == '3A')or(detband == '4A')or(detband == '34A')):
         file='template_34A.fits.gz'
-    elif (detband == '34B'):
+    elif ((detband == '3B')or(detband == '4B')or(detband == '34B')):
         file='template_34B.fits.gz'
-    elif (detband == '34C'):
+    elif ((detband == '3C')or(detband == '4C')or(detband == '34C')):
         file='template_34C.fits.gz'
 
     # Try looking for the file in the expected location
@@ -333,6 +340,8 @@ def rough_fwhm(band):
     elif (band == '4B'):
         fwhm=0.87
     elif (band == '4C'):
+        fwhm=1.0
+    else:
         fwhm=1.0
         
     return fwhm
