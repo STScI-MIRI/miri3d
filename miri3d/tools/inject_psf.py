@@ -28,6 +28,7 @@ REVISION HISTORY:
 19-Jul-2019  Overhaul to work for more than Ch1A (D. Law)
 30-Aug-2019  Many tweaks, addition of beta scan pattern (D. Law)
 03-Sep-2019  Overhaul approach to create a slice mask on simulated scene (D. Law)
+20-Apr-2021  Overhaul approach to create scanning of a FOV and allow single bands (D. Law)
 """
 
 import os as os
@@ -37,10 +38,12 @@ import numpy as np
 from astropy.io import fits
 from numpy.testing import assert_allclose
 import miricoord.mrs.mrs_tools as mt
+import miricoord.mrs.makesiaf.makesiaf_mrs as mrssiaf
 import miricoord.tel.tel_tools as tt
 from scipy import ndimage
 from astropy.modeling import models, fitting
 
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pdb
 
@@ -53,50 +56,100 @@ import pdb
 #
 # Input detband is (e.g.) 12A, 34B, etc.
 
-def main(detband,dithers,psftot,extval,betascan=False):
+def main(detband,dithers,psftot,extval,scan=False):
     # Set the distortion solution to use
     mt.set_toolversion('cdp8b')
     
     # Define the bands to use
-    if (detband == '12A'):
-        left,right='1A','2A'
-    elif (detband == '12B'):
-        left,right='1B','2B'
-    elif (detband == '12C'):
-        left,right='1C','2C'
-    elif (detband == '34A'):
-        left,right='4A','3A'        
-    elif (detband == '34B'):
-        left,right='4B','3B'
-    elif (detband == '34C'):
-        left,right='4C','3C'   
-    else:
-        print('Input detector/band not recognized!')
+    left, right = 'N/A', 'N/A'
+
+    if ((detband == '1A')or(detband == '12A')):
+        left='1A'
+    if ((detband == '2A')or(detband == '12A')):
+        right='2A'
+    if ((detband == '1B')or(detband == '12B')):
+        left='1B'
+    if ((detband == '2B')or(detband == '12B')):
+        right='2B'
+    if ((detband == '1C')or(detband == '12C')):
+        left='1C'
+    if ((detband == '2C')or(detband == '12C')):
+        right='2C'
+
+    if ((detband == '3A')or(detband == '34A')):
+        right='3A'
+    if ((detband == '4A')or(detband == '34A')):
+        left='4A'
+    if ((detband == '3B')or(detband == '34B')):
+        right='3B'
+    if ((detband == '4B')or(detband == '34B')):
+        left='4B'
+    if ((detband == '3C')or(detband == '34C')):
+        right='3C'
+    if ((detband == '4C')or(detband == '34C')):
+        left='4C'
+
+    #########################################################        
         
     print('Setting up the dithers')
-
-    # If the betascan option was True, use dithers taken from a set scanning every 0.5 slice widths along beta direction
-    # dist=np.arange(-3,3.1,0.5)
-    # be=dist*sw
-    # al=np.zeros(13)
-    # al2=np.ones(13)*0.1 
-    # And then converted to Ideal coordinate offsets
-    if (betascan == True):
-        print('Using beta scanning coordinates')
-        dxidl=np.array([-0.07425094, -0.06187578, -0.04950062, -0.03712547, -0.02475031, -0.01237516, -0.        ,  0.01237516,  0.02475031,  0.03712547, 0.04950062,  0.06187578,  0.07425094, -0.17281015, -0.16045445, -0.14809875, -0.13574305, -0.12338735, -0.11103165, -0.09867595, -0.08632025, -0.07396455, -0.06160885, -0.04925315, -0.03689745, -0.02454175])
-        dyidl=np.array([0.52758708,  0.4396559 ,  0.35172472,  0.26379354,  0.17586236, 0.08793118,  0.        , -0.08793118, -0.17586236, -0.26379354, -0.35172472, -0.4396559 , -0.52758708,  0.51316277,  0.42519493, 0.33722708,  0.24925924,  0.16129139,  0.07332355, -0.0146443 , -0.10261214, -0.19057999, -0.27854783, -0.36651568, -0.45448352, -0.54245137])
-    # Otherwise, use the normal dither pattern
-    # Updated to CDP-8b distortion solution and PRDOPSSOC-M-026, add extended pattern
-    else:
+    
+    # Normal CDP-8b distortion solution dithers from PRDOPSSOC-M-026
+    if (scan == False):
         dxidl=np.array([0.,1.094458,-1.012049,0.988069,-1.117844,0.102213,-0.127945,0.008080,-0.034015])
         dyidl=np.array([0.,-0.385616,0.296642,-0.311605,0.371771,-0.485776,0.467512,-0.499923,0.481275])
 
+        # Select desired combination of dither positions
+        # Warning, this will fail if we have bad input!
+        dxidl=dxidl[dithers]
+        dyidl=dyidl[dithers]
+        nexp=len(dxidl)
+    
+    # If the 'scan' option was True, then override the setup to create a scanning grid to sample
+    # the field for a given channel.  Note that this also will only populate a single detector at a time!
+    if (scan == True):
+        if ((detband == '12A')or(detband == '12B')or(detband == '12C')or(detband == '34A')or(detband == '34B')or(detband == '34C')):
+            print('Cannot use scan with selected band!')
+        # What is the field for this channel?
+        chinfo=mrssiaf.create_siaf_oneband(detband)
+        minalpha,maxalpha = np.min(chinfo['inscr_alpha_corners']), np.max(chinfo['inscr_alpha_corners'])
+        minbeta,maxbeta = np.min(chinfo['inscr_beta_corners']), np.max(chinfo['inscr_beta_corners'])
+        # And the slice width
+        sw=mt.slicewidth(detband)
+        # Number of slices
+        nslice=((maxbeta-minbeta)/sw).astype(int)
+        # PSF FWHM for spacing
+        fwhm=rough_fwhm(detband)
+        # First six points are the corners and sides
+        alpha1=np.array([minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm,minalpha+fwhm,maxalpha-fwhm])
+        beta1=np.array([maxbeta-fwhm,maxbeta-fwhm,0,0,minbeta+fwhm,minbeta+fwhm])
+        # Next set of points is a scan up alpha=0 for every slice
+        alpha2=np.zeros(nslice)
+        beta2=np.arange(nslice)*sw+minbeta+sw/2.
+        # Concatenate arrays
+        alpha=np.concatenate((alpha1,alpha2))
+        beta=np.concatenate((beta1,beta2))
+
+        # Convert to v2,v3
+        v2,v3 = mt.abtov2v3(alpha,beta,detband)
+        v2zero,v3zero = mt.abtov2v3(0,0,detband)
+        # Now convert to Ideal coordinate offsets relative to IFU center FOV in this band
+        dx,dy=mt.v2v3_to_xyideal(v2,v3)
+        dx0,dy0=mt.v2v3_to_xyideal(v2zero,v3zero)
+        dxidl=dx-dx0
+        dyidl=dy-dy0
+        nexp=len(dxidl)
+
+        # Print the points to a file for reference
+        pointfile='simpoints'+detband+'.txt'
+        print('# alpha beta',file=open(pointfile,"a"))
+        for ii in range(0,nexp):
+            print(alpha[ii],beta[ii],file=open(pointfile,"a"))
         
-    # Select desired combination of dither positions
-    # Warning, this will fail if we have bad input!
-    dxidl=dxidl[dithers]
-    dyidl=dyidl[dithers]
-    nexp=len(dxidl)
+        # Plot where the points were for reference
+        plotname='qaplot'+detband+'.png'
+        plot_qascan(chinfo,detband,v2,v3,filename=plotname)
+
+    #########################################################
 
     # MRS reference location is DEFINED for 1A regardless of band in use
     v2ref,v3ref=mt.abtov2v3(0.,0.,'1A')
@@ -134,12 +187,14 @@ def main(detband,dithers,psftot,extval,betascan=False):
     # Do left half of detector
     print('Working on left half of detector')
     roi=rough_fwhm(left)*3
-    allexp,allarea = setvalues(allexp,allarea,left,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
+    if (left != 'N/A'):
+        allexp,allarea = setvalues(allexp,allarea,left,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
     
     # Do right half of detector
     print('Working on right half of detector')
     roi=rough_fwhm(right)*3
-    allexp,allarea = setvalues(allexp,allarea,right,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
+    if (right != 'N/A'):
+        allexp,allarea = setvalues(allexp,allarea,right,roi,raobj,decobj,raref,decref,rollref,dxidl,dyidl,psftot,extval)
 
     # Write the exposures to disk
     print('Writing files')
@@ -164,10 +219,55 @@ def main(detband,dithers,psftot,extval,betascan=False):
         hdu['SCI'].data=thisexp
         hdu.writeto(newfile,overwrite=True)
         hdu['SCI'].data=thisarea
+        # Overwrite any old DQ problems
+        hdu['DQ'].data[:]=0
         hdu.writeto(newareafile,overwrite=True)
 
     print('Done!')
+
+#############################
+
+# QA plot when doing a field scan approach
+
+def plot_qascan(values,channel,v2,v3,**kwargs):
+    # Plot thickness
+    mpl.rcParams['axes.linewidth'] = 1.5
+
+    plt.figure(figsize=(8,5),dpi=250)
     
+    # Box limits
+    if ('xlim') in kwargs:
+        xlim=kwargs['xlim']
+    else:
+        xlim=[values['slice_v2_corners'].max(),values['slice_v2_corners'].min()]
+    if ('ylim') in kwargs:
+        ylim=kwargs['ylim']
+    else:
+        ylim=[values['slice_v3_corners'].min(),values['slice_v3_corners'].max()]
+
+    plt.tick_params(axis='both',direction='in',which='both',top=True,right=True)
+
+    plt.xlim(xlim[0],xlim[1])
+    plt.ylim(ylim[0],ylim[1])
+    nslice=len(values['slice_num'])
+    for i in range(0,nslice):
+        thiscol='C'+str(i%10)
+        plt.plot(values['slice_v2_corners'][i],values['slice_v3_corners'][i],c=thiscol)
+        #plt.plot(values['slice_v2ref'][i],values['slice_v3ref'][i],marker='x',linestyle='',c=thiscol)
+    plt.plot(values['inscr_v2_corners'],values['inscr_v3_corners'],color='#000000',linewidth=2)
+    #plt.plot(values['inscr_v2ref'],values['inscr_v3ref'],color='#000000',marker='x',markersize=10,mew=2)
+    plt.plot(v2,v3,'d')
+    plt.xlabel('v2 (arcsec)')
+    plt.ylabel('v3 (arcsec)')
+    plt.title(channel)
+
+    # Determine whether we're sending the plot to screen or to a file
+    if ('filename' in kwargs):
+        plt.savefig(kwargs['filename'])
+        plt.close()
+    else:
+        plt.show()
+
 #############################
 
 # Read in the appropriate Lvl2b template file for this channel/band.  These are files in which
