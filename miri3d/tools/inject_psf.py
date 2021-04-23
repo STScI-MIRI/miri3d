@@ -131,12 +131,10 @@ def main(detband,dithers,psftot,extval,scan=False,writearea=False):
 
         # Convert to v2,v3
         v2,v3 = mt.abtov2v3(alpha,beta,detband)
-        v2zero,v3zero = mt.abtov2v3(0,0,detband)
-        # Now convert to Ideal coordinate offsets relative to IFU center FOV in this band
-        dx,dy=mt.v2v3_to_xyideal(v2,v3)
-        dx0,dy0=mt.v2v3_to_xyideal(v2zero,v3zero)
-        dxidl=dx-dx0
-        dyidl=dy-dy0
+        # Now convert to Ideal coordinate offsets relative to Ch1a reference point
+        dxidl,dyidl=mt.v2v3_to_xyideal(v2,v3)
+        # Now flip them, because we're moving the source not the telescope
+        dxidl,dyidl=-dxidl,-dyidl
         nexp=len(dxidl)
 
         # Print the points to a file for reference
