@@ -21,12 +21,14 @@ import datetime
 import os as os
 import numpy as np
 import pdb
+import matplotlib as mpl
 from matplotlib import pyplot as plt
 import miri3d.cubepar.make_cubepar as mc
 from jwst import datamodels
 from jwst.datamodels import Extract1dIFUModel
 from jwst.datamodels import MirMrsApcorrModel
 from jwst.datamodels import util
+import miricoord.mrs.makesiaf.makesiaf_mrs as mksiaf
     
 #############################
 
@@ -95,7 +97,8 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
     meta['history']='1D Extraction defaults'
     meta['history']+=' DOCUMENT: TBD'
     meta['history']+=' SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/x1d/make_x1d.py'
-    meta['history']+=' DATA USED: CDP-7'        
+    meta['history']+=' DATA USED: CDP-7'
+    meta['history']+=' Updated 4/26/21 to decrease background annulus size'
     meta['instrument']={
         'name': 'MIRI'
         }
@@ -158,13 +161,43 @@ def make_x1d_fromdict(now,cdp_dir,outplot):
 
     # Therefore, we'll make annuli that shrink linearly (relative to FWHM)
     # with wavelength
-    in1,in2 = np.min(radius)*3.0, np.max(radius)*1.5
-    out1,out2 = np.min(radius)*3.5, np.max(radius)*2.0
+    in1,in2 = np.min(radius)*2.5, np.max(radius)*1.02
+    out1,out2 = np.min(radius)*3.0, np.max(radius)*1.5
     inbkg=np.float32(np.interp(waves,np.array([np.min(waves),np.max(waves)]),
                                       np.array([in1,in2])))
     outbkg=np.float32(np.interp(waves,np.array([np.min(waves),np.max(waves)]),
                                       np.array([out1,out2])))
-    
+
+    # QA plot that our aperture and annuli look reasonable
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(5,5), dpi=150)
+    tband=['1A','2A','3A','4A'] # Bands to test
+    twave=[7.5,11.75,18,28] # Wavelengths to test
+    ax=[ax1,ax2,ax3,ax4]
+    for ii in range(0,len(tband)):
+        siaf=mksiaf.create_siaf_oneband(tband[ii])
+        indx=np.argmin(np.abs(waves-twave[ii]))
+        ax[ii].plot(siaf['inscr_v2_corners'],siaf['inscr_v3_corners'],color='#000000',linewidth=2)
+        # Circle showing FWHM
+        circle = mpl.patches.Circle((siaf['inscr_v2ref'],siaf['inscr_v3ref']), 0.31*twave[ii]/8./2,linewidth=1,edgecolor='black', facecolor=(0, 0, 0, .0125))
+        ax[ii].add_artist(circle)
+        # Circle showing extraction radius
+        circle = mpl.patches.Circle((siaf['inscr_v2ref'],siaf['inscr_v3ref']), radius[indx],linewidth=1,edgecolor='r', facecolor=(0, 0, 0, .0125))
+        ax[ii].add_artist(circle)
+        # Circles showing annulus
+        circle = mpl.patches.Circle((siaf['inscr_v2ref'],siaf['inscr_v3ref']), inbkg[indx],linewidth=1,edgecolor='b', facecolor=(0, 0, 0, .0125))
+        ax[ii].add_artist(circle)
+        circle = mpl.patches.Circle((siaf['inscr_v2ref'],siaf['inscr_v3ref']), outbkg[indx],linewidth=1,edgecolor='b', facecolor=(0, 0, 0, .0125))
+        ax[ii].add_artist(circle)
+        ax[ii].set_xlim(-508,-499)
+        ax[ii].set_ylim(-324,-315)
+        ax[ii].set_xlabel('V2 (arcsec)')
+        ax[ii].set_ylabel('V3 (arcsec)')
+        ax[ii].set_title(tband[ii])
+    plt.tight_layout()
+    plt.savefig(str.replace(outplot,'.png','FOV.png'))
+    plt.close()
+
+    # QA plot of final values
     plt.plot(inwave,inap,'.')
     plt.plot(waves,radius)
     plt.plot(waves,inbkg,color='red')
