@@ -13,6 +13,7 @@ Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 12-Dec-2019  Modify weights based on pipeline testing (D. Law)
 08-Jan-2021  Tweak cube wavelength ranges to account for isolambda curvature (D. Law)
 04-Feb-2021  Add cross-dichroic information (D. Law)
+05-Aug-2021  Add DRIZ mode multiband information (D. Law)
 
 """
 
@@ -63,8 +64,12 @@ def make_cubepar():
     # Create the fifth extension (MULTICHANNEL_EMSM: multichannel exponential weights and roi)
     print('Making 5th extension')
     hdu5=make_ext5()
+
+    # Create the sixth extension (MULTICHANNEL_DRIZ: multichannel wavelengths)
+    print('Making 6th extension')
+    hdu6=make_ext6()
     
-    hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5])
+    hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5,hdu6])
     hdul.writeto(outfile,overwrite=True)
 
 #############################
@@ -184,6 +189,7 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='Set parameters for 12 bands based on simulations.'
     hdu.header['HISTORY']='Tweak wavelength ranges to account for isolambda tilt within slices.'
     hdu.header['HISTORY']='Add cross-dichroic configurations.'
+    hdu.header['HISTORY']='Add support for multiband drizzling.'
     return hdu
 
 #############################
@@ -415,5 +421,22 @@ def make_ext5():
 
     hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4])
     hdu.header['EXTNAME']='MULTICHANNEL_EMSM'
+    
+    return hdu
+
+#############################
+
+# Create 6th extension (MULTICHANNEL_DRIZ) with multichannel Drizzle parameters
+# (just a wavelength solution is needed)
+
+def make_ext6():
+    # Define the multiextension wavelength solution
+    finalwave=mrs_multiwave()
+    nelem=len(finalwave)
+
+    col1=fits.Column(name='WAVELENGTH',format='D',array=finalwave, unit='micron')
+
+    hdu=fits.BinTableHDU.from_columns([col1])
+    hdu.header['EXTNAME']='MULTICHANNEL_DRIZ'
     
     return hdu
