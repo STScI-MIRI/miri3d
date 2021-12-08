@@ -95,8 +95,8 @@ def main(detband,dithers,psftot,extval,scan=False,writearea=False):
     
     # Normal CDP-8b distortion solution dithers from PRDOPSSOC-M-026
     if (scan == False):
-        dxidl=np.array([0.,1.094458,-1.012049,0.988069,-1.117844,0.102213,-0.127945,0.008080,-0.034015])
-        dyidl=np.array([0.,-0.385616,0.296642,-0.311605,0.371771,-0.485776,0.467512,-0.499923,0.481275])
+        dxidl=-np.array([0.,1.094458,-1.012049,0.988069,-1.117844,0.102213,-0.127945,0.008080,-0.034015])
+        dyidl=-np.array([0.,-0.385616,0.296642,-0.311605,0.371771,-0.485776,0.467512,-0.499923,0.481275])
 
         # Select desired combination of dither positions
         # Warning, this will fail if we have bad input!
