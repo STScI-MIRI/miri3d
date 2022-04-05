@@ -76,11 +76,20 @@ def make_cubepar():
 
 # Compute the min/max wavelength to use for cube building for a given channel
 
-def waveminmax(channel):
-    wimg=mt.waveimage(channel)
+def waveminmax(channel,**kwargs):
+    # To save time don't recompute the wavelength image if passed in one
+    if 'waveimage' in kwargs:
+        wimg=kwargs['waveimage']
+    else:
+        wimg=mt.waveimage(channel)
+        
     distfile=fits.open(mt.get_fitsreffile(channel))
     slicemap=distfile['Slice_Number'].data
-    slicemap=slicemap[0,:,:]# Most permissive slice mask
+    # Unless otherwise specified, use the most permissive throughput slice map
+    if 'mapplane' in kwargs:
+        slicemap=slicemap[kwargs['mapplane'],:,:]
+    else:
+        slicemap=slicemap[0,:,:]
 
     # Zero out where wavelengths are zero
     indx=np.where(wimg < 1.)
