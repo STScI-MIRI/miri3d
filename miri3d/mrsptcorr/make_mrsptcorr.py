@@ -9,6 +9,7 @@ Author: David R. Law (dlaw@stsci.edu)
 
 REVISION HISTORY:
 24-Feb-2022  First written (D. Law)
+20-Apr-2022  Updated data model names (D. Law)
 """
 
 from astropy.io import fits
@@ -19,8 +20,9 @@ import os as os
 import numpy as np
 import miricoord.mrs.mrs_tools as mt
 import pdb
+from jwst import datamodels
 
-def make_ifuptcor():
+def make_mrsptcorr():
     # Input files
     leakfile='yannis_order2.fits'
     tracor12='MIRI_FM_MIRIFUSHORT_12_TRACORR_06.00.00.fits'
@@ -30,12 +32,12 @@ def make_ifuptcor():
     
     # Set the output data directory
     data_dir=os.path.expandvars('$MIRI3D_DATA_DIR')
-    outdir=os.path.join(data_dir,'ifuptcor/temp/')
+    outdir=os.path.join(data_dir,'mrsptcorr/temp/')
     # Set the output filename including an MJD stamp
     now=Time.now()
     now.format='fits'
     mjd=int(now.mjd)
-    filename='miri-ifuptcor-'+str(mjd)+'.fits'
+    filename='miri-mrsptcorr-'+str(mjd)+'.fits'
     outfile=os.path.join(outdir,filename)
     thisfile=__file__
     _,thisfile=os.path.split(thisfile)
@@ -60,6 +62,10 @@ def make_ifuptcor():
     hdul.writeto(outfile,overwrite=True)
 
     print('Wrote output file to ',outfile)
+
+    # Test that it passes the datamodel
+    with datamodels.open(outfile) as im:
+        assert isinstance(im, datamodels.MirMrsPtCorrModel)
     
 #############################
 
@@ -70,10 +76,10 @@ def make_ext0(now,thisfile):
     
     hdu.header['DATE']=now.value
 
-    hdu.header['REFTYPE']='IFUPTCOR'
-    hdu.header['DESCRIP']='IFU Point Source Corrections'
+    hdu.header['REFTYPE']='MRSPTCORR'
+    hdu.header['DESCRIP']='MRS Point Source Corrections'
     hdu.header['PEDIGREE']='GROUND'
-    hdu.header['DATAMODL']='MiriIFUPtCorrModel'
+    hdu.header['DATAMODL']='MirMrsPtCorrModel'
     hdu.header['TELESCOP']='JWST'
     hdu.header['INSTRUME']='MIRI'
     hdu.header['MODELNAM']='FM'
@@ -88,7 +94,7 @@ def make_ext0(now,thisfile):
     hdu.header['AUTHOR']='D. Law'
     hdu.header['ORIGIN']='STSCI'
     hdu.header['HISTORY']='DOCUMENT: TBD'
-    hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/ifuptcor/make_ifuptcor.py'
+    hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/mrsptcorr/make_mrsptcorr.py'
 
     return hdu
 
@@ -102,6 +108,7 @@ def make_ext1(leakfile):
     hdu1a=hdu['SCI']
     hdu1b=hdu['ERR']
     hdu1c=hdu['DQ']
+    hdu1c.data=hdu1c.data.astype(int)
     hdu1d=hdu['DQ_DEF']
 
     return hdu1a, hdu1b, hdu1c, hdu1d
