@@ -108,7 +108,7 @@ def make_ext1(leakfile):
     hdu1a=hdu['SCI']
     hdu1b=hdu['ERR']
     hdu1c=hdu['DQ']
-    hdu1c.data=hdu1c.data.astype(int)
+    hdu1c.data=hdu1c.data.astype(np.uint32)
     hdu1d=hdu['DQ_DEF']
 
     return hdu1a, hdu1b, hdu1c, hdu1d
