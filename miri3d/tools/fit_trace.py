@@ -252,7 +252,10 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
         bound_low=[0.,xcen_pass1[ii]-3*rms,0,-ftemp.max()]
         bound_hi=[10*np.max(ftemp),xcen_pass1[ii]+3*rms,10,ftemp.max()]
         # Do the fit
-        popt,_ = curve_fit(gauss1d, xtemp, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
+        try:
+            popt,_ = curve_fit(gauss1d, xtemp, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
+        except:
+            popt=p0
         xcen_pass2[ii]=popt[1]
         xwid_pass2[ii]=popt[2]
 
@@ -273,7 +276,10 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
         bound_low=[0.,xcen_pass2[ii]-3*rms,twidth*0.999,-ftemp.max()]
         bound_hi=[10*np.max(ftemp),xcen_pass2[ii]+3*rms,twidth*1.001,ftemp.max()]
         # Do the fit
-        popt,_ = curve_fit(gauss1d, xtemp, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
+        try:
+            popt,_ = curve_fit(gauss1d, xtemp, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
+        except:
+            popt=p0
         xcen_pass3[ii]=popt[1]
 
     # Clean up the fit to remove outliers
@@ -289,22 +295,29 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
     temp=np.polyval(fit,basey[:,0])
     indx=np.where(np.abs(xcen_pass3-temp) > 3*(sigclip(xcen_pass3-temp)[2]))
     qual[indx]=0
+    # Find any nan values and set them to bad quality
+    indx=np.where(np.isfinite(xcen_pass3) != True)
+    qual[indx]=0
 
+    
     # Look for bad failures (e.g., steps that occur if the source is at the edge
     # of the field)
     diff=xcen_pass3-temp
     good=(np.where(qual == 1))[0]
     rms=np.nanstd(diff[good])
 
+    # Replace bad points with the simple polynomial fit
+    bad=np.where(qual == 0)
+    xcen_pass3[bad]=temp[bad]
+
+    # Update to a spline fit if the data is good enough
+    
     # If rms of the GOOD point fit is over 0.3 pixels don't do spline fitting
     if (rms > 0.3):
         print('WARNING: Alpha trace is poor!  Source at edge of field?')
-        # Replace bad values
-        bad=np.where(qual == 0)
-        xcen_pass3[bad]=temp[bad]
     else:
         # Spline fit
-        spl=UnivariateSpline(basey[:,0],xcen_pass3,w=qual,s=1)
+        spl=UnivariateSpline(basey[:,0],xcen_pass3,w=None,s=10)# Not sure about this smoothing factor
         model=spl(basey[:,0])
         # Replace bad values
         bad=np.where(qual == 0)
@@ -312,5 +325,5 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
         # If method='model' then return the model itself for everything
         if (method == 'model'):
             xcen_pass3=model
-
+            
     return xcen_pass2,xcen_pass3
