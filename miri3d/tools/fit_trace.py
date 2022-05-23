@@ -35,6 +35,7 @@ from scipy.interpolate import UnivariateSpline
 from scipy.interpolate import splev
 from scipy.interpolate import splrep
 from scipy.optimize import curve_fit
+import scipy.signal as sgl
 
 import crds.jwst.locate as crds_locate
 import miricoord.mrs.mrs_tools as mt
@@ -53,7 +54,7 @@ def gauss1d(x, A, mu, sigma, baseline):
 # I.e. it might be out of sync!
 # Need to specify by hand which side of the detector you want
 
-def fit(file,band,recompute='False',nmed=11,method='meas',verbose=False):
+def fit(file,band,recompute='False',nmed=11,verbose=False):
     hdu=fits.open(file)
 
     # Which channel & band is this data?
@@ -123,13 +124,13 @@ def fit(file,band,recompute='False',nmed=11,method='meas',verbose=False):
     peakslice=slices[np.argmax(slicesum)]
 
     # Get the x trace in the central slice
-    xtrace_mid_pass2,xtrace_mid_pass3=trace_slice(peakslice,data,snum,basex,basey,nmed, method,verbose)
-    xtrace_lo_pass2,xtrace_lo_pass3=trace_slice(peakslice-1,data,snum,basex,basey,nmed, method,verbose)
-    xtrace_hi_pass2,xtrace_hi_pass3=trace_slice(peakslice+1,data,snum,basex,basey,nmed, method,verbose)
+    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose)
+    xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose)
+    xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose)
 
-    alpha_mid=(mt.xytoabl(xtrace_mid_pass3,basey[:,0],band))['alpha']
-    alpha_lo=(mt.xytoabl(xtrace_lo_pass3,basey[:,0],band))['alpha']
-    alpha_hi=(mt.xytoabl(xtrace_hi_pass3,basey[:,0],band))['alpha']
+    alpha_mid=(mt.xytoabl(xtrace_mid_poly,basey[:,0],band))['alpha']
+    alpha_lo=(mt.xytoabl(xtrace_lo_poly,basey[:,0],band))['alpha']
+    alpha_hi=(mt.xytoabl(xtrace_hi_poly,basey[:,0],band))['alpha']
 
     # Final alpha value is the median alpha along the central trace
     good=np.where(alpha_mid > -100) # Ensure we don't use anything that centroided between slices
@@ -156,7 +157,7 @@ def fit(file,band,recompute='False',nmed=11,method='meas',verbose=False):
     minwave,maxwave=np.min(allwave),np.max(allwave)
     dwave=(maxwave-minwave)/ysize*3 # We'll skip every 3 wavelength elements
     # Cut out ends
-    minwave,maxwave=minwave+dwave*100,maxwave-dwave*100
+    minwave,maxwave=minwave+dwave*10,maxwave-dwave*10
     wavevec=np.arange(minwave,maxwave,dwave)
     nwave=len(wavevec)
 
@@ -183,6 +184,7 @@ def fit(file,band,recompute='False',nmed=11,method='meas',verbose=False):
             popt=p0
         bcen_vec[ii]=popt[1]
         bwid_vec[ii]=popt[2]
+        #model=gauss1d(slice_beta,popt)
 
     # Final beta is the median of the values measured at various wavelengths
     beta=np.nanmedian(bcen_vec)
@@ -201,15 +203,21 @@ def fit(file,band,recompute='False',nmed=11,method='meas',verbose=False):
     values['ra']=ra
     values['dec']=dec
     values['beta_vec']=bcen_vec
-    values['alpha_vec']=alpha_mid
-    values['xtrace2']=xtrace_mid_pass2
-    values['xtrace3']=xtrace_mid_pass3
+    values['alpha_mid']=alpha_mid
+    values['alpha_lo']=alpha_lo
+    values['alpha_hi']=alpha_hi
+    values['xtrace3_mid']=xtrace_mid_pass3
+    values['xtrace3_lo']=xtrace_lo_pass3
+    values['xtrace3_hi']=xtrace_hi_pass3
+    values['xtrace_mid_poly']=xtrace_mid_poly
+    values['xtrace_lo_poly']=xtrace_lo_poly
+    values['xtrace_hi_poly']=xtrace_hi_poly
 
     return values
 
 ##########
 
-def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
+def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
     # Zero out everything outside the peak slice
     indx=np.where(snum == thisslice)
     data_slice=data*0.
@@ -260,9 +268,13 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
         xwid_pass2[ii]=popt[2]
 
     ###################
-        
+
     # Third pass for x location; use a fixed profile width
     twidth=np.nanmedian(xwid_pass2)
+
+    xamp_pass3=np.zeros(ysize)
+    xbase_pass3=np.zeros(ysize)
+    
     if verbose:
         print('Third pass trace fitting, median trace width ',twidth, ' pixels')
     xcen_pass3=np.zeros(ysize)
@@ -280,50 +292,30 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,method,verbose):
             popt,_ = curve_fit(gauss1d, xtemp, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
         except:
             popt=p0
+        xamp_pass3[ii]=popt[0]
         xcen_pass3[ii]=popt[1]
-
+        xbase_pass3[ii]=popt[3]
+                  
     # Clean up the fit to remove outliers
     qual=np.ones(ysize)
     # Low order polynomial fit to find the worst outliers using plain RMS
     fit=np.polyfit(basey[:,0],xcen_pass3,2)
-    temp=np.polyval(fit,basey[:,0])
-    indx=np.where(np.abs(xcen_pass3-temp) > 3*np.nanstd(xcen_pass3-temp))
+    model=np.polyval(fit,basey[:,0])
+    indx=np.where(np.abs(xcen_pass3-model) > 3*np.nanstd(xcen_pass3-model))
     qual[indx]=0
     good=(np.where(qual == 1))[0]
     # Another fit to find lesser outliers using sigma-clipped RMS
     fit=np.polyfit(basey[good,0],xcen_pass3[good],2)
-    temp=np.polyval(fit,basey[:,0])
-    indx=np.where(np.abs(xcen_pass3-temp) > 3*(sigclip(xcen_pass3-temp)[2]))
+    model=np.polyval(fit,basey[:,0])
+    indx=np.where(np.abs(xcen_pass3-model) > 3*(sigclip(xcen_pass3-model)[2]))
     qual[indx]=0
     # Find any nan values and set them to bad quality
     indx=np.where(np.isfinite(xcen_pass3) != True)
     qual[indx]=0
-
-    
-    # Look for bad failures (e.g., steps that occur if the source is at the edge
-    # of the field)
-    diff=xcen_pass3-temp
     good=(np.where(qual == 1))[0]
-    rms=np.nanstd(diff[good])
 
-    # Replace bad points with the simple polynomial fit
-    bad=np.where(qual == 0)
-    xcen_pass3[bad]=temp[bad]
+    # Final model fit
+    fit=np.polyfit(basey[good,0],xcen_pass3[good],2)
+    model=np.polyval(fit,basey[:,0])
 
-    # Update to a spline fit if the data is good enough
-    
-    # If rms of the GOOD point fit is over 0.3 pixels don't do spline fitting
-    if (rms > 0.3):
-        print('WARNING: Alpha trace is poor!  Source at edge of field?')
-    else:
-        # Spline fit
-        spl=UnivariateSpline(basey[:,0],xcen_pass3,w=None,s=10)# Not sure about this smoothing factor
-        model=spl(basey[:,0])
-        # Replace bad values
-        bad=np.where(qual == 0)
-        xcen_pass3[bad]=model[bad]
-        # If method='model' then return the model itself for everything
-        if (method == 'model'):
-            xcen_pass3=model
-            
-    return xcen_pass2,xcen_pass3
+    return xcen_pass2,xcen_pass3,model
