@@ -14,6 +14,7 @@ Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 08-Jan-2021  Tweak cube wavelength ranges to account for isolambda curvature (D. Law)
 04-Feb-2021  Add cross-dichroic information (D. Law)
 05-Aug-2021  Add DRIZ mode multiband information (D. Law)
+07-Jun-2022  Fix cross-grating assignments (D. Law)
 
 """
 
@@ -234,11 +235,12 @@ def make_ext1():
     wsamp=np.array([0.001,0.001,0.001,0.002,0.002,0.002,0.003,0.003,0.003,0.006,0.006,0.006])
 
     # Add cross-dichroic information just using the same parameters as each indiv band used
-    # Do it in two batches as that's simplest
-    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
-                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
-    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
-                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    # Keep in mind that Ch1 and Ch4 are set by the DGAA wheel (first name in band) and
+    # Ch2 and Ch3 are set by the DGAB wheel (second name in band)
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG',
+                    'LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
     allchan=np.append(chan,np.append(chan,chan))
     allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
     allwmin=np.append(wmin,np.append(wmin,wmin))
@@ -271,11 +273,13 @@ def make_ext2():
     softrad=np.array([0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01,0.01])
 
     # Add cross-dichroic information just using the same parameters as each indiv band used
-    # Do it in two batches as that's simplest
-    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
-                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
-    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
-                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    # Keep in mind that Ch1 and Ch4 are set by the DGAA wheel (first name in band) and
+    # Ch2 and Ch3 are set by the DGAB wheel (second name in band)
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG',
+                    'LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+
     allchan=np.append(chan,np.append(chan,chan))
     allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
     allroispat=np.append(roispat,np.append(roispat,roispat))
@@ -379,11 +383,13 @@ def make_ext4():
     roispec=np.array([0.0025,0.0025,0.0025,0.005,0.005,0.005,0.007,0.007,0.007,0.014,0.014,0.014])
 
     # Add cross-dichroic information just using the same parameters as each indiv band used
-    # Do it in two batches as that's simplest
-    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM',
-                   'MEDIUM-LONG','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
-    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
-                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+    # Keep in mind that Ch1 and Ch4 are set by the DGAA wheel (first name in band) and
+    # Ch2 and Ch3 are set by the DGAB wheel (second name in band)
+    xbnd1=np.array(['SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT','LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG',
+                    'LONG-SHORT','SHORT-MEDIUM','MEDIUM-LONG','SHORT-MEDIUM','MEDIUM-LONG','LONG-SHORT'])
+    xbnd2=np.array(['SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM','MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG',
+                    'MEDIUM-SHORT','LONG-MEDIUM','SHORT-LONG','SHORT-LONG','MEDIUM-SHORT','LONG-MEDIUM'])
+
     allchan=np.append(chan,np.append(chan,chan))
     allbnd=np.append(bnd,np.append(xbnd1,xbnd2))
     allroispat=np.append(roispat,np.append(roispat,roispat))
