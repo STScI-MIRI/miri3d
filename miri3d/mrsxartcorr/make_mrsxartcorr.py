@@ -51,11 +51,11 @@ def make_mrsxartcorr():
     hdu2A=read_ext('xart_2A_model.fits','CH2A')
     hdu2B=read_ext('xart_2B_model.fits','CH2B')
     hdu2C=read_ext('xart_2C_model.fits','CH2C')
-    hdu3A=read_ext('xart_3A_model.fits','CH3A')
-    hdu3B=read_ext('xart_3B_model.fits','CH3B')
-    hdu3C=read_ext('xart_3C_model.fits','CH3C')
     
     # Create placeholder extensions with zero models
+    hdu3A=zero_ext(hdu1A,'Ch3A')
+    hdu3B=zero_ext(hdu1A,'Ch3B')
+    hdu3C=zero_ext(hdu1A,'Ch3C')   
     hdu4A=zero_ext(hdu1A,'Ch4A')
     hdu4B=zero_ext(hdu1A,'Ch4B')
     hdu4C=zero_ext(hdu1A,'Ch4C')    
