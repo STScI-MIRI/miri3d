@@ -13,6 +13,7 @@ Author: David R. Law (dlaw@stsci.edu)
 REVISION HISTORY:
 07-Mar-2022  First written (D. Law)
 20-Apr-2022  Updated crds type name (D. Law)
+01-Jun-2022  Update with flight data (D. Law)
 """
 
 from astropy.io import fits
@@ -42,13 +43,24 @@ def make_mrsxartcorr():
     print('Making 0th extension')
     hdu0=make_ext0(now,filename)
 
-    # Create extensions
+    # Create extensions from full model
     print('Making extensions')
-    hdu1A=read_ext('reftype_chx.fits','CH1A')
-    hdu1B=read_ext('reftype_chx.fits','CH1B')
-    hdu1C=read_ext('reftype_chx.fits','CH1C')
+    hdu1A=read_ext('xart_1A_model.fits','CH1A')
+    hdu1B=read_ext('xart_1B_model.fits','CH1B')
+    hdu1C=read_ext('xart_1C_model.fits','CH1C')
+    hdu2A=read_ext('xart_2A_model.fits','CH2A')
+    hdu2B=read_ext('xart_2B_model.fits','CH2B')
+    hdu2C=read_ext('xart_2C_model.fits','CH2C')
+    hdu3A=read_ext('xart_3A_model.fits','CH3A')
+    hdu3B=read_ext('xart_3B_model.fits','CH3B')
+    hdu3C=read_ext('xart_3C_model.fits','CH3C')
     
-    hdul=fits.HDUList([hdu0,hdu1A,hdu1B,hdu1C])
+    # Create placeholder extensions with zero models
+    hdu4A=zero_ext(hdu1A,'Ch4A')
+    hdu4B=zero_ext(hdu1A,'Ch4B')
+    hdu4C=zero_ext(hdu1A,'Ch4C')    
+    
+    hdul=fits.HDUList([hdu0,hdu1A,hdu1B,hdu1C,hdu2A,hdu2B,hdu2C,hdu3A,hdu3B,hdu3C,hdu4A,hdu4B,hdu4C])
     hdul.writeto(outfile,overwrite=True)
 
     print('Wrote output file to ',outfile)
@@ -68,7 +80,7 @@ def make_ext0(now,thisfile):
 
     hdu.header['REFTYPE']='MRSXARTCORR'
     hdu.header['DESCRIP']='MRS Cross Artifact Correction'
-    hdu.header['PEDIGREE']='GROUND'
+    hdu.header['PEDIGREE']='INFLIGHT 2022-05-22 2022-05-22'
     hdu.header['DATAMODL']='MirMrsXArtCorrModel'
     hdu.header['TELESCOP']='JWST'
     hdu.header['INSTRUME']='MIRI'
@@ -79,12 +91,13 @@ def make_ext0(now,thisfile):
     hdu.header['CHANNEL']='N/A'
 
     hdu.header['FILENAME']=thisfile
-    hdu.header['USEAFTER']='2000-01-01T00:00:00'
+    hdu.header['USEAFTER']='2022-05-01T00:00:00'
     hdu.header['VERSION']=int(now.mjd)
     hdu.header['AUTHOR']='D. Law'
     hdu.header['ORIGIN']='STSCI'
+    hdu.header['HISTORY']='Initial flight models'
     hdu.header['HISTORY']='DOCUMENT: TBD'
-    hdu.header['HISTORY']='SOFTWARE: '
+    hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/blob/master/miri3d/mrsxartcorr/make_mrsxartcorr.py'
 
     return hdu
 
@@ -102,23 +115,18 @@ def read_ext(file,extname):
 
 #############################
 
-# Create 1A extension with cross-artifact model information
+# Create a zero-valued placeholder extension
+# based on an input structure
 
-def make_ext1A():
-    yrow = np.arange(1024)
+def zero_ext(template,extname):
+    hdu = template.copy()
+    hdu.header['EXTNAME'] = extname
 
-    # Read vectors from where????
-#    lfwhm = readsomethinghere
-
-    col1=fits.Column(name='YROW',format='I',array=yrow, unit='pixel')
-    col2=fits.Column(name='LOR_FWHM',format='E',array=lfwhm, unit='pixel')
-    col3=fits.Column(name='LOR_SCALE',format='E',array=lscale)
-    col4=fits.Column(name='GAU_FWHM',format='E',array=gfwhm, unit='pixel')
-    col5=fits.Column(name='GAU_XOFF',format='E',array=gxoff, unit='pixel')
-    col6=fits.Column(name='GAU_SCALE1',format='E',array=gscale1, unit='pixel')
-    col7=fits.Column(name='GAU_SCALE2',format='E',array=gscale2, unit='pixel')
+    hdu.data['LOR_FWHM'][:] = 100.
+    hdu.data['LOR_SCALE'][:] = 0.
+    hdu.data['GAU_FWHM'][:] = 1.
+    hdu.data['GAU_XOFF'][:] = 10.
+    hdu.data['GAU_SCALE1'][:] = 0.
+    hdu.data['GAU_SCALE2'][:] = 0.
     
-    hdu=fits.BinTableHDU.from_columns([col1,col2,col3,col4,col5,col6,col7])
-    hdu.header['EXTNAME']='CH1A'
-
     return hdu
