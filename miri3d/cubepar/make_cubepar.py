@@ -30,6 +30,9 @@ import pdb
 
 # This routine is the master function to make the reference file
 def make_cubepar():
+    # miricoord version
+    print('miricoord version: '+mt.version())
+    
     # Set the output data directory
     data_dir=os.path.expandvars('$MIRI3D_DATA_DIR')
     outdir=os.path.join(data_dir,'cubepar/temp/')
@@ -72,6 +75,7 @@ def make_cubepar():
     
     hdul=fits.HDUList([hdu0,hdu1,hdu2,hdu3,hdu4,hdu5,hdu6])
     hdul.writeto(outfile,overwrite=True)
+    print('Wrote file '+outfile)
 
 #############################
 
@@ -105,11 +109,13 @@ def waveminmax(channel,**kwargs):
     thislmin=np.zeros(nslice)
     thislmax=np.zeros(nslice)
 
-    # Look at top and bottom rows of the detector
-    wimg_row1 = wimg[0,:]
-    wimg_row2 = wimg[-1,:]
-    slice_row1 = slicemap[0,:]
-    slice_row2 = slicemap[-1,:]
+    # Ignore the top and bottom 3 rows of the detector as these will be masked with
+    # DO_NOT_USE in actual data
+    # Look at 4th-to-top and 4th-to-bottom rows of the detector
+    wimg_row1 = wimg[3,:]
+    wimg_row2 = wimg[-4,:]
+    slice_row1 = slicemap[3,:]
+    slice_row2 = slicemap[-4,:]
 
     # Detectors have different orientations.  Ensure that row1 is shorter wavelength than row2
     if (np.max(wimg_row1) > np.max(wimg_row2)):
