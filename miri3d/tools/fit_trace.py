@@ -54,8 +54,11 @@ def gauss1d(x, A, mu, sigma, baseline):
 # I.e. it might be out of sync!
 # Need to specify by hand which side of the detector you want
 
-def fit(file,band,recompute='False',nmed=11,verbose=False):
+def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     hdu=fits.open(file)
+
+    mt.set_toolversion(mtvers)
+    print('miricoord version: ',mt.version())
 
     # Which channel & band is this data?
     chan_file=hdu[0].header['CHANNEL']
