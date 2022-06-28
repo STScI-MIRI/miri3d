@@ -181,7 +181,7 @@ def make_ext0(now,thisfile):
 
     hdu.header['REFTYPE']='CUBEPAR'
     hdu.header['DESCRIP']='Default IFU Cube Sampling and weight parameters'
-    hdu.header['PEDIGREE']='GROUND'
+    hdu.header['PEDIGREE']='INFLIGHT 2022-06-08 2022-06-08'
     hdu.header['DATAMODL']='MiriIFUCubeParsModel'
     hdu.header['TELESCOP']='JWST'
     hdu.header['INSTRUME']='MIRI'
@@ -192,7 +192,7 @@ def make_ext0(now,thisfile):
     hdu.header['CHANNEL']='N/A'
 
     hdu.header['FILENAME']=thisfile
-    hdu.header['USEAFTER']='2000-01-01T00:00:00'
+    hdu.header['USEAFTER']='2022-05-01T00:00:00'
     hdu.header['VERSION']=int(now.mjd)
     hdu.header['AUTHOR']='D. Law'
     hdu.header['ORIGIN']='STSCI'
@@ -206,6 +206,7 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='Tweak wavelength ranges to account for isolambda tilt within slices.'
     hdu.header['HISTORY']='Add cross-dichroic configurations.'
     hdu.header['HISTORY']='Add support for multiband drizzling.'
+    hdu.header['HISTORY']='June 28 2022: Update for MRS FLT-2'
     return hdu
 
 #############################
@@ -351,12 +352,12 @@ def mrs_multiwave():
     # Set up the generating equation for our wavelength grid
     nwave=10000 # Start with 10,000 samples and shrink later as necessary
     lam=np.zeros(nwave) # Temporary wavelength vector
-    lam[0]=4.890# Starting wavelength
+    lam[0]=4.90# Starting wavelength
     dlam=np.zeros(nwave) # Temporary delta-wavelength vector
     rvec=np.zeros(nwave) # Temporary resolving power
 
     i=0
-    maxwave=28.45
+    maxwave=28.62
     while (lam[i] <= maxwave):
         rvec[i]=4490.75-142.53*lam[i]
         dlam[i]=lam[i]/(2*rvec[i])
@@ -433,7 +434,7 @@ def make_ext5():
     # Rough guess at ROI limiting region
     roispat=fwhm
     # Rough guess at ROI spectral region
-    roispec=((0.014 - 0.0025)/(28.4186-4.89000))*(finalwave-4.890)+0.0025
+    roispec=((0.014 - 0.0025)/(28.4186-4.90000))*(finalwave-4.90)+0.0025
 
     col1=fits.Column(name='WAVELENGTH',format='D',array=finalwave, unit='micron')
     col2=fits.Column(name='ROISPATIAL',format='E',array=roispat, unit='arcsec')
