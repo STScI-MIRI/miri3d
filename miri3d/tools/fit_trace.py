@@ -22,6 +22,7 @@ Author: David R. Law (dlaw@stsci.edu)
 
 REVISION HISTORY:
 13-Jan-2022  First written
+25-Jul-2022  Major speed improvements
 """
 
 from os.path import exists
@@ -29,6 +30,7 @@ import matplotlib.pyplot as plt
 import pdb
 
 import numpy as np
+import time
 from astropy.io import fits
 from astropy.stats import sigma_clipped_stats as sigclip
 from scipy.interpolate import UnivariateSpline
@@ -54,11 +56,21 @@ def gauss1d(x, A, mu, sigma, baseline):
 # I.e. it might be out of sync!
 # Need to specify by hand which side of the detector you want
 
-def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
+def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwargs):
+    # Start a timer to keep track of runtime
+    #time0 = time.perf_counter()
+    
     hdu=fits.open(file)
 
+    # Define a wavelength image (use cached if passed one to save time)
+    if ('waveim' in kwargs):
+        waveim=kwargs['waveim']
+    else:
+        waveim=mt.waveimage(band)
+    
     mt.set_toolversion(mtvers)
-    print('miricoord version: ',mt.version())
+    if (verbose == True):
+        print('miricoord version: ',mt.version())
 
     # Which channel & band is this data?
     chan_file=hdu[0].header['CHANNEL']
@@ -74,15 +86,19 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     basex,basey = np.meshgrid(np.arange(1032),np.arange(1024))
     
     # Compute the alpha, beta, lambda, and slice number mapping
+    # If passed in, use cached to save runtime
     if verbose:
         print('Computing distortion mapping')
-    temp=mt.xytoabl(basex.ravel(),basey.ravel(),band)
-    
+    if ('ablgrid' in kwargs):
+        ablgrid=kwargs['ablgrid']
+    else:
+        ablgrid=mt.xytoabl(basex.ravel(),basey.ravel(),band)
+        
     # Reshape to 2d arrays
-    alpha=np.reshape(temp['alpha'],basex.shape)
-    beta=np.reshape(temp['beta'],basex.shape)
-    lam=np.reshape(temp['lam'],basex.shape)
-    snum=np.reshape(temp['slicenum'],basex.shape)
+    alpha=np.reshape(ablgrid['alpha'],basex.shape)
+    beta=np.reshape(ablgrid['beta'],basex.shape)
+    lam=np.reshape(ablgrid['lam'],basex.shape)
+    snum=np.reshape(ablgrid['slicenum'],basex.shape)
 
     # Define the pixel area array
     arcsec_per_ster=4.255e10
@@ -99,7 +115,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
         if verbose:
             print("Couldn't find photom file, recomputing pixel areas")
         pixarea=mt.pixarea(band,frame='v2v3')/arcsec_per_ster # Convert to steradians
-        
+
     # Define the science array in units of mJy
     data=hdu['SCI'].data*pixarea*1e9 # Convert from MJy/sr to mJy
     ysize,xsize=data.shape
@@ -111,7 +127,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     # Zero out all data not in one of these slices (i.e., other half of detector)
     indx=np.where(snum < 0)
     data[indx]=0.
-    
+
     # Identify the peak slice using a cut along the central row of the detector
     # Median combine down nmed rows to add robustness against noise
     ystart=int(ysize/2 - nmed/2)
@@ -124,36 +140,52 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     for ii in range(0,nslices):
         indx=np.where(slicecut == slices[ii])
         slicesum[ii]=np.nansum(cut[indx])
+    # Which slice is the peak in?
     peakslice=slices[np.argmax(slicesum)]
 
-    # Get the x trace in the central slice
-    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose)
-    xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose)
-    xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose)
-
-    alpha_mid=(mt.xytoabl(xtrace_mid_poly,basey[:,0],band))['alpha']
-    alpha_lo=(mt.xytoabl(xtrace_lo_poly,basey[:,0],band))['alpha']
-    alpha_hi=(mt.xytoabl(xtrace_hi_poly,basey[:,0],band))['alpha']
-
-    # Final alpha value is the median alpha along the central trace
-    good=np.where(alpha_mid > -100) # Ensure we don't use anything that centroided between slices
-    alpha=np.nanmedian(alpha_mid[good])
-
-    # Central beta of the slices
+    # Define central beta of the slices
     slice_beta=np.zeros(nslices)
     for ii in range(0,nslices):
         # Use any pixel in the slice to get the beta
         indx=np.where(snum == slices[ii])
         slice_beta[ii]=(mt.xytoabl(basex[indx][0],basey[indx][0],band))['beta']
 
+    # Print out the time benchmark
+    #time1 = time.perf_counter()
+    #print(f"Runtime so far: {time1 - time0:0.4f} seconds")
+        
+    # Get the x trace in the central slice
+    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose)
+    alpha_mid=(mt.xytoabl(xtrace_mid_poly,basey[:,0],band))['alpha']
+    # Final alpha value is the median alpha along the central trace
+    good=np.where(alpha_mid > -100) # Ensure we don't use anything that centroided between slices
+    alpha=np.nanmedian(alpha_mid[good])
+
+    # If slice-1 is defined (not outside IFU) measure trace in that slice too
+    if (peakslice-1) in snum:
+        xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose)
+        alpha_lo=(mt.xytoabl(xtrace_lo_poly,basey[:,0],band))['alpha']
+    else:
+        xtrace_lo_pass2=xtrace_mid_pass2*0
+        xtrace_lo_pass3=xtrace_mid_pass3*0
+        xtrace_lo_poly=xtrace_mid_poly*0
+        alpha_lo=-100
+        
+    # If slice+1 is defined (not outside IFU) measure trace in that slice too
+    if (peakslice+1) in snum:
+        xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose)
+        alpha_hi=(mt.xytoabl(xtrace_hi_poly,basey[:,0],band))['alpha']
+    else:
+        xtrace_hi_pass2=xtrace_mid_pass2*0
+        xtrace_hi_pass3=xtrace_mid_pass3*0
+        xtrace_hi_poly=xtrace_mid_poly*0
+        alpha_hi=-100
+
     # We can't simply compare fluxes across slices at a given Y, because
     # there are wavelength offsets and we'd thus see spectral changes
     # not spatial changes in the flux.  Therefore sample at a grid
     # of wavelengths instead
 
-    # Define a wavelength image
-    waveim=mt.waveimage(band)
-    
     # Define common wavelength range of all slices
     indx=np.where(snum == peakslice)
     allwave=lam[indx]
@@ -167,7 +199,24 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     ftemp=np.zeros(nslices)
     bcen_vec=np.zeros(nwave)
     bwid_vec=np.zeros(nwave)
-    for ii in range(0,nwave):
+
+    # Print out the time benchmark
+    #time1 = time.perf_counter()
+    #print(f"Runtime so far: {time1 - time0:0.4f} seconds")
+
+    # Set upper bound on PSF width (sigma) for beta fit based on the band
+    psfmax=0.5 # default
+    if ((band == '1A')or(band == '1B')or(band == '1C')):
+        psfmax=0.3
+    if ((band == '2A')or(band == '2B')or(band == '2C')):
+        psfmax=0.4
+    if ((band == '3A')or(band == '3B')or(band == '3C')):
+        psfmax=0.5
+    if ((band == '4A')or(band == '4B')or(band == '4C')):
+        psfmax=0.6
+    
+    # To save on runtime, calculate only every 10 steps
+    for ii in range(0,nwave,10):
         ftemp[:]=0.
         for jj in range(0,nslices):
             # We can't trivially fit the trace in each slice either, because it's too faint to
@@ -176,10 +225,10 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
             indx=np.where((waveim > wavevec[ii]-dwave/2.)&(waveim <= wavevec[ii]+dwave/2.)&(snum == slices[jj]))
             ftemp[jj]=np.nansum(data[indx])
         # Initial guess at fit parameters
-        p0=[ftemp.max(),0.,0.5,0.]
+        p0=[ftemp.max(),slice_beta[np.argmax(ftemp)],psfmax/2.,0.]
         # Bounds for fit parameters
         bound_low=[0.,-10,0,-ftemp.max()]
-        bound_hi=[10*np.max(ftemp),10,10,ftemp.max()]
+        bound_hi=[10*np.max(ftemp),10,psfmax,ftemp.max()]
         # Do the fit
         try:
             popt,_ = curve_fit(gauss1d, slice_beta, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
@@ -187,10 +236,12 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
             popt=p0
         bcen_vec[ii]=popt[1]
         bwid_vec[ii]=popt[2]
-        #model=gauss1d(slice_beta,popt)
+        #model=gauss1d(slice_beta,popt[0],popt[1],popt[2],popt[3])
 
     # Final beta is the median of the values measured at various wavelengths
-    beta=np.nanmedian(bcen_vec)
+    # Median all non-zero values (b/c of failure cases on IFU edge or skipping above)
+    good=np.where(bcen_vec != 0)
+    beta=np.nanmedian(bcen_vec[good])
 
     # Convert final alpha,beta coordinates to v2,v3
     v2,v3=mt.abtov2v3(alpha,beta,band)
@@ -216,11 +267,18 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default'):
     values['xtrace_lo_poly']=xtrace_lo_poly
     values['xtrace_hi_poly']=xtrace_hi_poly
 
+    # Print out the time benchmark
+    #time1 = time.perf_counter()
+    #print(f"Runtime so far: {time1 - time0:0.4f} seconds")
+
     return values
 
 ##########
 
 def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
+    # Work everyn pixels to save time
+    everyn=10
+    
     # Zero out everything outside the peak slice
     indx=np.where(snum == thisslice)
     data_slice=data*0.
@@ -229,7 +287,6 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
     xmin,xmax=np.min(basex[indx]),np.max(basex[indx])
 
     ###################
-    
     # First pass for x locations in this slice;
     if verbose:
         print('First pass trace fitting')
@@ -247,13 +304,16 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
     xwid_pass1=np.ones(ysize) # First pass width is 1 pixel
 
     ###################
-    
     # Second pass for x locations along the trace within this slice
     if verbose:
         print('Second pass trace fitting')
-    xcen_pass2=np.zeros(ysize)
-    xwid_pass2=np.zeros(ysize)
-    for ii in range(0,ysize):
+
+    xcen_pass2=np.empty(ysize)
+    xcen_pass2[:]=np.nan
+    xwid_pass2=np.empty(ysize)
+    xwid_pass2[:]=np.nan
+    
+    for ii in range(0,ysize,everyn):
         xtemp=np.arange(xmin,xmax,1)
         ftemp=data_slice[ii,xtemp]
         
@@ -271,17 +331,20 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
         xwid_pass2[ii]=popt[2]
 
     ###################
-
     # Third pass for x location; use a fixed profile width
     twidth=np.nanmedian(xwid_pass2)
 
-    xamp_pass3=np.zeros(ysize)
-    xbase_pass3=np.zeros(ysize)
+    xamp_pass3=np.empty(ysize)
+    xamp_pass3[:]=np.nan
+    xbase_pass3=np.empty(ysize)
+    xbase_pass3[:]=np.nan
+    xcen_pass3=np.empty(ysize)
+    xcen_pass3[:]=np.nan
     
     if verbose:
         print('Third pass trace fitting, median trace width ',twidth, ' pixels')
-    xcen_pass3=np.zeros(ysize)
-    for ii in range(0,ysize):
+
+    for ii in range(0,ysize,everyn):
         xtemp=np.arange(xmin,xmax,1)
         ftemp=data_slice[ii,xtemp]
         
@@ -298,18 +361,24 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
         xamp_pass3[ii]=popt[0]
         xcen_pass3[ii]=popt[1]
         xbase_pass3[ii]=popt[3]
-                  
+
     # Clean up the fit to remove outliers
+    thisbasey=basey[:,0]
     qual=np.ones(ysize)
-    # Low order polynomial fit to find the worst outliers using plain RMS
-    fit=np.polyfit(basey[:,0],xcen_pass3,2)
+    # Low order polynomial fit to replace nans and find the worst outliers using plain RMS
+    good=np.where(np.isfinite(xcen_pass3) == True)
+    fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
     model=np.polyval(fit,basey[:,0])
+    indx=np.where(np.isfinite(xcen_pass3) == False)
+    qual[indx]=0
+    xcen_pass3[indx]=model[indx]
     indx=np.where(np.abs(xcen_pass3-model) > 3*np.nanstd(xcen_pass3-model))
     qual[indx]=0
     good=(np.where(qual == 1))[0]
     # Another fit to find lesser outliers using sigma-clipped RMS
     fit=np.polyfit(basey[good,0],xcen_pass3[good],2)
     model=np.polyval(fit,basey[:,0])
+
     indx=np.where(np.abs(xcen_pass3-model) > 3*(sigclip(xcen_pass3-model)[2]))
     qual[indx]=0
     # Find any nan values and set them to bad quality
