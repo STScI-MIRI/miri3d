@@ -59,6 +59,12 @@ def gauss1d(x, A, mu, sigma, baseline):
 def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwargs):
     # Start a timer to keep track of runtime
     #time0 = time.perf_counter()
+
+    # Improve runtime by running key steps everyn locations
+    if ('everyn' in kwargs):
+        everyn=kwargs['everyn']
+    else:
+        everyn=10  
     
     hdu=fits.open(file)
 
@@ -149,13 +155,17 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         # Use any pixel in the slice to get the beta
         indx=np.where(snum == slices[ii])
         slice_beta[ii]=(mt.xytoabl(basex[indx][0],basey[indx][0],band))['beta']
-
+    # Define absolute beta ranges (top of top slice to bottom of bottom slice)
+    dbeta=np.abs(slice_beta[0]-slice_beta[1])
+    minbeta=np.min(slice_beta)-dbeta/2.
+    maxbeta=np.max(slice_beta)+dbeta/2.
+    
     # Print out the time benchmark
     #time1 = time.perf_counter()
     #print(f"Runtime so far: {time1 - time0:0.4f} seconds")
         
     # Get the x trace in the central slice
-    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose)
+    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose,everyn)
     alpha_mid=(mt.xytoabl(xtrace_mid_poly,basey[:,0],band))['alpha']
     # Final alpha value is the median alpha along the central trace
     good=np.where(alpha_mid > -100) # Ensure we don't use anything that centroided between slices
@@ -163,7 +173,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
 
     # If slice-1 is defined (not outside IFU) measure trace in that slice too
     if (peakslice-1) in snum:
-        xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose)
+        xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose,everyn)
         alpha_lo=(mt.xytoabl(xtrace_lo_poly,basey[:,0],band))['alpha']
     else:
         xtrace_lo_pass2=xtrace_mid_pass2*0
@@ -173,7 +183,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         
     # If slice+1 is defined (not outside IFU) measure trace in that slice too
     if (peakslice+1) in snum:
-        xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose)
+        xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose,everyn)
         alpha_hi=(mt.xytoabl(xtrace_hi_poly,basey[:,0],band))['alpha']
     else:
         xtrace_hi_pass2=xtrace_mid_pass2*0
@@ -216,7 +226,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         psfmax=0.6
     
     # To save on runtime, calculate only every 10 steps
-    for ii in range(0,nwave,10):
+    for ii in range(0,nwave,everyn):
         ftemp[:]=0.
         for jj in range(0,nslices):
             # We can't trivially fit the trace in each slice either, because it's too faint to
@@ -226,9 +236,9 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
             ftemp[jj]=np.nansum(data[indx])
         # Initial guess at fit parameters
         p0=[ftemp.max(),slice_beta[np.argmax(ftemp)],psfmax/2.,0.]
-        # Bounds for fit parameters
-        bound_low=[0.,-10,0,-ftemp.max()]
-        bound_hi=[10*np.max(ftemp),10,psfmax,ftemp.max()]
+        # Bounds for fit parameters.  Assume center MUST be somewhere in field.
+        bound_low=[0.,minbeta,0,-ftemp.max()]
+        bound_hi=[10*np.max(ftemp),maxbeta,psfmax,ftemp.max()]
         # Do the fit
         try:
             popt,_ = curve_fit(gauss1d, slice_beta, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
@@ -275,10 +285,8 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
 
 ##########
 
-def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
-    # Work everyn pixels to save time
-    everyn=10
-    
+def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn):
+
     # Zero out everything outside the peak slice
     indx=np.where(snum == thisslice)
     data_slice=data*0.
@@ -365,29 +373,33 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose):
     # Clean up the fit to remove outliers
     thisbasey=basey[:,0]
     qual=np.ones(ysize)
-    # Low order polynomial fit to replace nans and find the worst outliers using plain RMS
+    
+    # Low order polynomial fit to replace nans
     good=np.where(np.isfinite(xcen_pass3) == True)
     fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
-    model=np.polyval(fit,basey[:,0])
+    model=np.polyval(fit,thisbasey)
     indx=np.where(np.isfinite(xcen_pass3) == False)
     qual[indx]=0
     xcen_pass3[indx]=model[indx]
-    indx=np.where(np.abs(xcen_pass3-model) > 3*np.nanstd(xcen_pass3-model))
+
+    # Standard deviation clipping to replace outliers
+    indx=np.where(np.abs(xcen_pass3-model) > 3*np.nanstd(xcen_pass3[good]-model[good]))
     qual[indx]=0
     good=(np.where(qual == 1))[0]
-    # Another fit to find lesser outliers using sigma-clipped RMS
-    fit=np.polyfit(basey[good,0],xcen_pass3[good],2)
-    model=np.polyval(fit,basey[:,0])
 
-    indx=np.where(np.abs(xcen_pass3-model) > 3*(sigclip(xcen_pass3-model)[2]))
+    # Another fit to find lesser outliers using sigma-clipped RMS
+    fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
+    model=np.polyval(fit,thisbasey)
+    indx=np.where(np.abs(xcen_pass3-model) > 3*(sigclip(xcen_pass3[good]-model[good])[2]))
     qual[indx]=0
+
     # Find any nan values and set them to bad quality
     indx=np.where(np.isfinite(xcen_pass3) != True)
     qual[indx]=0
     good=(np.where(qual == 1))[0]
-
+    
     # Final model fit
-    fit=np.polyfit(basey[good,0],xcen_pass3[good],2)
-    model=np.polyval(fit,basey[:,0])
+    fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
+    model=np.polyval(fit,thisbasey)
 
     return xcen_pass2,xcen_pass3,model
