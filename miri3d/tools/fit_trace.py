@@ -73,7 +73,13 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         waveim=kwargs['waveim']
     else:
         waveim=mt.waveimage(band)
-    
+
+    # Set a special flag if we're in Ch4C
+    if (band != '4C'):
+        ch4C=False
+    else:
+        ch4C=True
+        
     mt.set_toolversion(mtvers)
     if (verbose == True):
         print('miricoord version: ',mt.version())
@@ -134,11 +140,24 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     indx=np.where(snum < 0)
     data[indx]=0.
 
+    # Background subtraction if we're in Ch4
+    if ((band == '4A')or(band == '4B')or(band == '4C')):
+        for ii in range(0,ysize):
+            temp=data[ii,:]
+            indx=np.where(temp != 0)
+            bgval=np.nanmedian(temp[indx])
+            temp[indx]=temp[indx]-bgval
+            data[ii,:]=temp
+
     # Identify the peak slice using a cut along the central row of the detector
     # Median combine down nmed rows to add robustness against noise
     ystart=int(ysize/2 - nmed/2)
+    # If using Ch4C, use row 950 instead as throughput very low by row 500
+    if ch4C:
+        ystart=950
     ystop=ystart+nmed
     cut=np.nanmedian(data[ystart:ystop,:],axis=0)
+    # Define sum in each slice
     slicecut=snum[int(ysize/2),:]
     slicesum=np.zeros(nslices)
     # Need to sum the fluxes in each slice to avoid issues where centroid is on pixel boundary vs not
@@ -165,15 +184,23 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     #print(f"Runtime so far: {time1 - time0:0.4f} seconds")
         
     # Get the x trace in the central slice
-    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose,everyn)
+
+    
+    xtrace_mid_pass2,xtrace_mid_pass3,xtrace_mid_poly=trace_slice(peakslice,data,snum,basex,basey,nmed, verbose,everyn,ch4C=ch4C)
     alpha_mid=(mt.xytoabl(xtrace_mid_poly,basey[:,0],band))['alpha']
     # Final alpha value is the median alpha along the central trace
-    good=np.where(alpha_mid > -100) # Ensure we don't use anything that centroided between slices
+    # For most bands use entire Y range; for 4C use only rows > 700
+    # Ensure we don't use anything that centroided between slices
+    if (band == '4C'):
+        good=np.where((alpha_mid > -100)&(basey[:,0] > 700))
+    else:
+        good=np.where(alpha_mid > -100) 
     alpha=np.nanmedian(alpha_mid[good])
 
+            
     # If slice-1 is defined (not outside IFU) measure trace in that slice too
     if (peakslice-1) in snum:
-        xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose,everyn)
+        xtrace_lo_pass2,xtrace_lo_pass3,xtrace_lo_poly=trace_slice(peakslice-1,data,snum,basex,basey,nmed, verbose,everyn,ch4C=ch4C)
         alpha_lo=(mt.xytoabl(xtrace_lo_poly,basey[:,0],band))['alpha']
     else:
         xtrace_lo_pass2=xtrace_mid_pass2*0
@@ -183,7 +210,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         
     # If slice+1 is defined (not outside IFU) measure trace in that slice too
     if (peakslice+1) in snum:
-        xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose,everyn)
+        xtrace_hi_pass2,xtrace_hi_pass3,xtrace_hi_poly=trace_slice(peakslice+1,data,snum,basex,basey,nmed, verbose,everyn,ch4C=ch4C)
         alpha_hi=(mt.xytoabl(xtrace_hi_poly,basey[:,0],band))['alpha']
     else:
         xtrace_hi_pass2=xtrace_mid_pass2*0
@@ -197,18 +224,18 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     # of wavelengths instead
 
     # Define common wavelength range of all slices
-    indx=np.where(snum == peakslice)
-    allwave=lam[indx]
-    minwave,maxwave=np.min(allwave),np.max(allwave)
-    dwave=(maxwave-minwave)/ysize*3 # We'll skip every 3 wavelength elements
+    #indx=np.where(snum == peakslice)
+    #allwave=lam[indx]
+    #minwave,maxwave=np.min(allwave),np.max(allwave)
+    #dwave=(maxwave-minwave)/ysize
     # Cut out ends
-    minwave,maxwave=minwave+dwave*10,maxwave-dwave*10
-    wavevec=np.arange(minwave,maxwave,dwave)
-    nwave=len(wavevec)
+    #minwave,maxwave=minwave+dwave*10,maxwave-dwave*10
+    #wavevec=np.arange(minwave,maxwave,dwave)
+    #nwave=len(wavevec)
 
     ftemp=np.zeros(nslices)
-    bcen_vec=np.zeros(nwave)
-    bwid_vec=np.zeros(nwave)
+    bcen_vec=np.zeros(ysize)
+    bwid_vec=np.zeros(ysize)
 
     # Print out the time benchmark
     #time1 = time.perf_counter()
@@ -224,16 +251,22 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         psfmax=0.5
     if ((band == '4A')or(band == '4B')or(band == '4C')):
         psfmax=0.6
-    
-    # To save on runtime, calculate only every 10 steps
-    for ii in range(0,nwave,everyn):
+
+
+    # NEW: ignore wavelength shifts and just do this up rows instead so we can median
+    for ii in range(0,ysize,everyn):
         ftemp[:]=0.
+        ystart=ii
+        ystop=ystart+nmed
+        if (ystop > ysize):
+            ystop=ysize
+        cut=np.nanmedian(data[ystart:ystop,:],axis=0)
         for jj in range(0,nslices):
             # We can't trivially fit the trace in each slice either, because it's too faint to
             # see in most, and the width changes from slice to slice.
             # Therefore just sum in a wavelength box.
-            indx=np.where((waveim > wavevec[ii]-dwave/2.)&(waveim <= wavevec[ii]+dwave/2.)&(snum == slices[jj]))
-            ftemp[jj]=np.nansum(data[indx])
+            indx=np.where(snum[ii,:] == slices[jj])
+            ftemp[jj]=np.nansum(cut[indx])
         # Initial guess at fit parameters
         p0=[ftemp.max(),slice_beta[np.argmax(ftemp)],psfmax/2.,0.]
         # Bounds for fit parameters.  Assume center MUST be somewhere in field.
@@ -247,11 +280,51 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         bcen_vec[ii]=popt[1]
         bwid_vec[ii]=popt[2]
         #model=gauss1d(slice_beta,popt[0],popt[1],popt[2],popt[3])
+        #if (ii > 700):
+        #    pdb.set_trace()
+
+
 
     # Final beta is the median of the values measured at various wavelengths
     # Median all non-zero values (b/c of failure cases on IFU edge or skipping above)
-    good=np.where(bcen_vec != 0)
+    # In band 4C only use rows > 700
+    if ch4C:
+        good=np.where((bcen_vec != 0)&(basey[:,0] > 700))
+    else:
+        good=np.where(bcen_vec != 0) 
     beta=np.nanmedian(bcen_vec[good])
+        
+
+
+        
+    # To save on runtime, calculate only every 10 steps
+    #for ii in range(0,nwave,everyn):
+    #    ftemp[:]=0.
+    #    for jj in range(0,nslices):
+    #        # We can't trivially fit the trace in each slice either, because it's too faint to
+    #        # see in most, and the width changes from slice to slice.
+    #        # Therefore just sum in a wavelength box.
+    #        indx=np.where((waveim > wavevec[ii]-dwave/2.)&(waveim <= wavevec[ii]+dwave/2.)&(snum == slices[jj]))
+    #        ftemp[jj]=np.nansum(data[indx])
+    #    # Initial guess at fit parameters
+    #    p0=[ftemp.max(),slice_beta[np.argmax(ftemp)],psfmax/2.,0.]
+    #    # Bounds for fit parameters.  Assume center MUST be somewhere in field.
+    #    bound_low=[0.,minbeta,0,-ftemp.max()]
+    #    bound_hi=[10*np.max(ftemp),maxbeta,psfmax,ftemp.max()]
+    #    # Do the fit
+    #    try:
+    #        popt,_ = curve_fit(gauss1d, slice_beta, ftemp, p0=p0, bounds=(bound_low,bound_hi), method='trf')
+    #    except:
+    #        popt=p0
+    #    bcen_vec[ii]=popt[1]
+    #    bwid_vec[ii]=popt[2]
+    #    model=gauss1d(slice_beta,popt[0],popt[1],popt[2],popt[3])
+    #    if (ii > 700):
+    #        pdb.set_trace()
+    #pdb.set_trace()
+
+
+
 
     # Convert final alpha,beta coordinates to v2,v3
     v2,v3=mt.abtov2v3(alpha,beta,band)
@@ -285,13 +358,13 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
 
 ##########
 
-def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn):
-
+def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn,ch4C=False):
+    ysize,xsize=data.shape
+    
     # Zero out everything outside the peak slice
     indx=np.where(snum == thisslice)
     data_slice=data*0.
     data_slice[indx]=data[indx]
-    ysize,xsize=data.shape
     xmin,xmax=np.min(basex[indx]),np.max(basex[indx])
 
     ###################
@@ -396,9 +469,19 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn):
     # Find any nan values and set them to bad quality
     indx=np.where(np.isfinite(xcen_pass3) != True)
     qual[indx]=0
-    good=(np.where(qual == 1))[0]
+
+    # If we're in Ch4C, ignore everything with y< 500
+    # but set a point at y=0 to the median of all good points
+    # to help ensure the polynomial doesn't go crazy
+    if ch4C:
+        indx=np.where(thisbasey < 500)
+        qual[indx]=0
+        good=(np.where(qual == 1))[0]
+        xcen_pass3[0]=np.median(xcen_pass3[good])
+        qual[0]=1
     
     # Final model fit
+    good=(np.where(qual == 1))[0]
     fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
     model=np.polyval(fit,thisbasey)
 
