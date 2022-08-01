@@ -339,6 +339,7 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     values['v3']=v3
     values['ra']=ra
     values['dec']=dec
+    values['snum']=peakslice
     values['beta_vec']=bcen_vec
     values['alpha_mid']=alpha_mid
     values['alpha_lo']=alpha_lo
