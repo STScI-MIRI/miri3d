@@ -23,6 +23,7 @@ Author: David R. Law (dlaw@stsci.edu)
 REVISION HISTORY:
 13-Jan-2022  First written
 25-Jul-2022  Major speed improvements
+26-Aug-2022  Return very rough spectrum
 """
 
 from os.path import exists
@@ -67,12 +68,6 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         everyn=10  
     
     hdu=fits.open(file)
-
-    # Define a wavelength image (use cached if passed one to save time)
-    if ('waveim' in kwargs):
-        waveim=kwargs['waveim']
-    else:
-        waveim=mt.waveimage(band)
 
     # Set a special flag if we're in Ch4C
     if (band != '4C'):
@@ -324,7 +319,13 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     #pdb.set_trace()
 
 
-
+    # Extract a rough spectrum along this trace
+    spectrum_lam=np.zeros(len(xtrace_mid_poly))
+    spectrum_flux=np.zeros(len(xtrace_mid_poly))
+    for ii in range(0,len(xtrace_mid_poly)):
+        thisx=int(xtrace_mid_poly[ii])
+        spectrum_lam[ii]=np.nanmedian(lam[ii,thisx-3:thisx+3])
+        spectrum_flux[ii]=np.nansum(data[ii,thisx-3:thisx+3])
 
     # Convert final alpha,beta coordinates to v2,v3
     v2,v3=mt.abtov2v3(alpha,beta,band)
@@ -350,6 +351,8 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     values['xtrace_mid_poly']=xtrace_mid_poly
     values['xtrace_lo_poly']=xtrace_lo_poly
     values['xtrace_hi_poly']=xtrace_hi_poly
+    values['spectrum_lam']=spectrum_lam
+    values['spectrum_flux']=spectrum_flux
 
     # Print out the time benchmark
     #time1 = time.perf_counter()
