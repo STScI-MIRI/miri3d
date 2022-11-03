@@ -15,6 +15,7 @@ Mid-2018  IDL version written by Beth Sargent (sargent@stsci.edu)
 04-Feb-2021  Add cross-dichroic information (D. Law)
 05-Aug-2021  Add DRIZ mode multiband information (D. Law)
 07-Jun-2022  Fix cross-grating assignments (D. Law)
+21-Oct-2022  Adjust to flight spectral resolution and 4C cutoff (D. Law)
 
 """
 
@@ -207,6 +208,8 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='Add cross-dichroic configurations.'
     hdu.header['HISTORY']='Add support for multiband drizzling.'
     hdu.header['HISTORY']='June 28 2022: Update for MRS FLT-2'
+    hdu.header['HISTORY']='Aug 27 2022: Update for MRS FLT-4'
+    hdu.header['HISTORY']='Nov 3 2022: Update 4C cutoff, wavelength sampling, and multiband wavelength solution'
     return hdu
 
 #############################
@@ -238,8 +241,11 @@ def make_ext1():
     wmin=np.round(wmin,2)+0.01
     wmax=np.round(wmax,2)-0.01
 
+    # Manual override to where there's useful information in 4C
+    wmax[-1]=27.9
+
     spaxsize=np.array([0.13,0.13,0.13,0.17,0.17,0.17,0.20,0.20,0.20,0.35,0.35,0.35])
-    wsamp=np.array([0.001,0.001,0.001,0.002,0.002,0.002,0.003,0.003,0.003,0.006,0.006,0.006])
+    wsamp=np.array([0.0008,0.0008,0.0008,0.0013,0.0013,0.0013,0.0025,0.0025,0.0025,0.006,0.006,0.006])
 
     # Add cross-dichroic information just using the same parameters as each indiv band used
     # Keep in mind that Ch1 and Ch4 are set by the DGAA wheel (first name in band) and
@@ -343,23 +349,27 @@ def mrs_multiwave():
     # Model the spectral resolution as a function of wavelength
     # with a linear function
     testlam=np.arange(10000)/10000.*23.+5.
-    # Empirical linear fit
-    testres=-142.53*testlam+4490.75
+    # Empirical fit
+    tempx=np.array([5,10,12,17,27])
+    tempy=np.array([4000,3400,3000,2500,1400])
+    test=np.polyfit(tempx,tempy,2)
+    model=np.poly1d(test)
+    testres=model(testlam)
 
     # Target wavelength sampling is twice per resolution element
     testsamp=testlam/(2*testres)
 
     # Set up the generating equation for our wavelength grid
-    nwave=10000 # Start with 10,000 samples and shrink later as necessary
+    nwave=12000 # Start with 12,000 samples and shrink later as necessary
     lam=np.zeros(nwave) # Temporary wavelength vector
     lam[0]=4.90# Starting wavelength
     dlam=np.zeros(nwave) # Temporary delta-wavelength vector
     rvec=np.zeros(nwave) # Temporary resolving power
 
     i=0
-    maxwave=28.62
+    maxwave=27.9
     while (lam[i] <= maxwave):
-        rvec[i]=4490.75-142.53*lam[i]
+        rvec[i]=model(lam[i])
         dlam[i]=lam[i]/(2*rvec[i])
         lam[i+1]=lam[i]+dlam[i]
         i=i+1
