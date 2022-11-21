@@ -1,6 +1,6 @@
 #
 """
-Tool for fitting a trace to the source location in a 2d MRS _cal.fits file.
+Tool for fitting a trace to the source location in a 2d MRS rate or cal.fits file.
 Loosely based on previous code by Y. Argyriou.
 
 Required input:
@@ -24,6 +24,7 @@ REVISION HISTORY:
 13-Jan-2022  First written
 25-Jul-2022  Major speed improvements
 26-Aug-2022  Return very rough spectrum
+18-Nov-2022  Adapt for rate files, allow forcing peak slice
 """
 
 from os.path import exists
@@ -107,24 +108,30 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
     lam=np.reshape(ablgrid['lam'],basex.shape)
     snum=np.reshape(ablgrid['slicenum'],basex.shape)
 
-    # Define the pixel area array
-    arcsec_per_ster=4.255e10
-    # Start by looking for the pre-computed array in the photom file
-    photom_file=hdu[0].header['R_PHOTOM']
-    photom_path=crds_locate.locate_file(photom_file)
-    if (exists(photom_path)&(recompute == 'False')):
-        if verbose:
-            print('Importing pixel areas from ',photom_path)
-        photom=fits.open(photom_path)
-        pixarea=photom['PIXSIZ'].data # In ster
-    # If that can't be found, recompute it (results not identical though)
-    else:
-        if verbose:
-            print("Couldn't find photom file, recomputing pixel areas")
-        pixarea=mt.pixarea(band,frame='v2v3')/arcsec_per_ster # Convert to steradians
+    # If this is a cal file, convert from surf bright to flux units
+    # Identify cal files by existence of R_PHOTOM keyword
+    if (hdu[0].header.get('R_PHOTOM')):
+        # Define the pixel area array
+        arcsec_per_ster=4.255e10
+        # Start by looking for the pre-computed array in the photom file
+        photom_file=hdu[0].header['R_PHOTOM']
+        photom_path=crds_locate.locate_file(photom_file)
+        if (exists(photom_path)&(recompute == 'False')):
+            if verbose:
+                print('Importing pixel areas from ',photom_path)
+            photom=fits.open(photom_path)
+            pixarea=photom['PIXSIZ'].data # In ster
+        # If that can't be found, recompute it (results not identical though)
+        else:
+            if verbose:
+                print("Couldn't find photom file, recomputing pixel areas")
+            pixarea=mt.pixarea(band,frame='v2v3')/arcsec_per_ster # Convert to steradians
 
-    # Define the science array in units of mJy
-    data=hdu['SCI'].data*pixarea*1e9 # Convert from MJy/sr to mJy
+        # Define the science array in units of mJy
+        data=hdu['SCI'].data*pixarea*1e9 # Convert from MJy/sr to mJy
+    else:
+        data=hdu['SCI'].data # DN/s
+
     ysize,xsize=data.shape
 
     # Determine how many slices and their numbers
@@ -162,6 +169,10 @@ def fit(file,band,recompute='False',nmed=11,verbose=False,mtvers='default',**kwa
         slicesum[ii]=np.nansum(cut[indx])
     # Which slice is the peak in?
     peakslice=slices[np.argmax(slicesum)]
+
+    # If so specified, force the peakslice to be a given value
+    if ('force_slice' in kwargs):
+        peakslice=kwargs['force_slice']
 
     # Define central beta of the slices
     slice_beta=np.zeros(nslices)
