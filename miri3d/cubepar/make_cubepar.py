@@ -241,8 +241,9 @@ def make_ext1():
     wmin=np.round(wmin,2)+0.01
     wmax=np.round(wmax,2)-0.01
 
-    # Manual override to where there's useful information in 4C
-    wmax[-1]=27.9
+    # Manual overrides for 4C
+    wmin[-1]=24.4
+    wmax[-1]=28.7
 
     spaxsize=np.array([0.13,0.13,0.13,0.17,0.17,0.17,0.20,0.20,0.20,0.35,0.35,0.35])
     wsamp=np.array([0.0008,0.0008,0.0008,0.0013,0.0013,0.0013,0.0025,0.0025,0.0025,0.006,0.006,0.006])
