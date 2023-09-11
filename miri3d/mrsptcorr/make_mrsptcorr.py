@@ -106,7 +106,7 @@ def make_ext0(now,thisfile):
 
     hdu.header['REFTYPE']='MRSPTCORR'
     hdu.header['DESCRIP']='MRS Point Source Corrections'
-    hdu.header['PEDIGREE']='GROUND'
+    hdu.header['PEDIGREE']='INFLIGHT 2022-07-23 2022-07-23'
     hdu.header['DATAMODL']='MirMrsPtCorrModel'
     hdu.header['TELESCOP']='JWST'
     hdu.header['INSTRUME']='MIRI'
@@ -123,6 +123,7 @@ def make_ext0(now,thisfile):
     hdu.header['ORIGIN']='STSCI'
     hdu.header['HISTORY']='DOCUMENT: TBD'
     hdu.header['HISTORY']='SOFTWARE: https://github.com/STScI-MIRI/miri3d/tree/master/miri3d/mrsptcorr/make_mrsptcorr.py'
+    hdu.header['HISTORY']='Updated format Sep 2023'
 
     return hdu
 
