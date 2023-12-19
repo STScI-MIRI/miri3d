@@ -210,6 +210,7 @@ def make_ext0(now,thisfile):
     hdu.header['HISTORY']='June 28 2022: Update for MRS FLT-2'
     hdu.header['HISTORY']='Aug 27 2022: Update for MRS FLT-4'
     hdu.header['HISTORY']='Nov 3 2022: Update 4C cutoff, wavelength sampling, and multiband wavelength solution'
+    hdu.header['HISTORY']='Dec 19 2023: Update 4C cutoff for multiband wavelength solution to match band solution'
     return hdu
 
 #############################
