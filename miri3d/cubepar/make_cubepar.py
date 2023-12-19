@@ -368,7 +368,7 @@ def mrs_multiwave():
     rvec=np.zeros(nwave) # Temporary resolving power
 
     i=0
-    maxwave=27.9
+    maxwave=28.7
     while (lam[i] <= maxwave):
         rvec[i]=model(lam[i])
         dlam[i]=lam[i]/(2*rvec[i])
