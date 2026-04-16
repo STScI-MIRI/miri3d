@@ -379,8 +379,11 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn,ch4C=False):
     # Zero out everything outside the peak slice
     indx=np.where(snum == thisslice)
     data_slice=data*0.
+    data_slice[:]=0. # Deal with NaNs
     data_slice[indx]=data[indx]
     xmin,xmax=np.min(basex[indx]),np.max(basex[indx])
+    indx=np.where(~np.isfinite(data_slice))
+    data_slice[indx]=0. # Deal with more NaNs
 
     ###################
     # First pass for x locations in this slice;
@@ -391,12 +394,13 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn,ch4C=False):
         ystart = max(0,int(ii-nmed/2))
         ystop = min(ysize,ystart+nmed)
         cut=np.nanmedian(data_slice[ystart:ystop,:],axis=0)
-        xcen_pass1[ii]=np.argmax(cut)
+        if (np.nansum(cut) != 0):
+            xcen_pass1[ii]=np.argmax(cut)
     # Clean up any bad values by looking for 3sigma outliers
-    # and replacing them with the median value
+    # and replacing them with zero
     rms,med=np.nanstd(xcen_pass1),np.nanmedian(xcen_pass1)
     indx=np.where((xcen_pass1 < med-3*rms) | (xcen_pass1 > med+3*rms))
-    xcen_pass1[indx]=med
+    xcen_pass1[indx]=0
     xwid_pass1=np.ones(ysize) # First pass width is 1 pixel
 
     ###################
@@ -458,28 +462,33 @@ def trace_slice(thisslice,data,snum,basex,basey,nmed,verbose,everyn,ch4C=False):
         xcen_pass3[ii]=popt[1]
         xbase_pass3[ii]=popt[3]
 
+    # Anywhere xcen_pass3 is zero set to NaN
+    xcen_pass3[xcen_pass3 == 0]=np.nan
+
     # Clean up the fit to remove outliers
     thisbasey=basey[:,0]
     qual=np.ones(ysize)
     
-    # Low order polynomial fit to replace nans
-    good=np.where(np.isfinite(xcen_pass3) == True)
+    # Low order polynomial fit
+    good=np.where(np.isfinite(xcen_pass3) == True)[0]
     fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
     model=np.polyval(fit,thisbasey)
     indx=np.where(np.isfinite(xcen_pass3) == False)
     qual[indx]=0
-    xcen_pass3[indx]=model[indx]
 
     # Standard deviation clipping to replace outliers
     indx=np.where(np.abs(xcen_pass3-model) > 3*np.nanstd(xcen_pass3[good]-model[good]))
     qual[indx]=0
     good=(np.where(qual == 1))[0]
 
-    # Another fit to find lesser outliers using sigma-clipped RMS
-    fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
-    model=np.polyval(fit,thisbasey)
-    indx=np.where(np.abs(xcen_pass3-model) > 3*(sigclip(xcen_pass3[good]-model[good])[2]))
-    qual[indx]=0
+    # Another fit to find lesser outliers using iterative sigma-clipped RMS
+    niter=5
+    for ii in range(0,niter):
+        good=(np.where(qual == 1))[0]
+        fit=np.polyfit(thisbasey[good],xcen_pass3[good],2)
+        model=np.polyval(fit,thisbasey)
+        indx=np.where(np.abs(xcen_pass3-model) > 2*(sigclip(xcen_pass3[good]-model[good])[2]))
+        qual[indx]=0
 
     # Find any nan values and set them to bad quality
     indx=np.where(np.isfinite(xcen_pass3) != True)
