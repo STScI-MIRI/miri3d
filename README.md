@@ -13,18 +13,12 @@ Code for generation of reference files and cube building for the MIRI MRS.
 
 Python:
 
-Python code is developed for a python 3.5 environment.  Clone this git repository to your local machine, and then install
+Python code is developed for a python 3.13 environment.  Clone this git repository to your local machine, and then install
 for your active conda environment by using:
 
-python setup.py install
+pip install -e .
 
-or
-
-python setup.py develop
-
-Using the 'install' option will copy the code over into your python library for the environment, while the 'develop' option
-will use the cloned code directory as the source.  The 'develop' method is thus potentially easier to maintain if you might
-be updating or contributing to miri3d frequently.
+MIGRATION WARNING: 7/3/26 this migrated from setup.py to pyproject.toml installation, which has changed some paths.
 
 Note that miri3d requires that the miricoord repository be installed as well (https://github.com/STScI-MIRI/miricoord).  Some functions also rely upon having the pysiaf (https://github.com/spacetelescope/pysiaf) and JWST pipeline (https://github.com/spacetelescope/jwst) modules installed as well.
 
